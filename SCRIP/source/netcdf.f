@@ -38,10 +38,10 @@
 
       use kinds_mod
       use constants
+      use netcdf
 
       implicit none
 
-      include 'netcdf.inc'
 
 !***********************************************************************
 
@@ -63,8 +63,8 @@
 
 !-----------------------------------------------------------------------
 
-      if (istat /= NF_NOERR) then
-        print *,'Error in netCDF: ',nf_strerror(istat)
+      if (istat /= NF90_NOERR) then
+        print *,'Error in netCDF: ',nf90_strerror(istat)
         stop
       endif
 

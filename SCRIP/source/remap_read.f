@@ -126,15 +126,15 @@
 !
 !-----------------------------------------------------------------------
 
-      ncstat = nf_open(interp_file, NF_NOWRITE, nc_file_id)
+      ncstat = nf90_open(interp_file, NF90_NOWRITE, nc_file_id)
       call netcdf_error_handler(ncstat)
 
       !***
       !*** map name
       !***
       map_name = ' '
-      ncstat = nf_get_att_text(nc_file_id, NF_GLOBAL, 'title',
-     &                         map_name)
+      ncstat = nf90_get_att(nc_file_id, NF90_GLOBAL, 'title',
+     &                      map_name)
       call netcdf_error_handler(ncstat)
 
       print *,'Reading remapping:',trim(map_name)
@@ -144,8 +144,8 @@
       !*** normalization option
       !***
       normalize_opt = ' '
-      ncstat = nf_get_att_text(nc_file_id, NF_GLOBAL, 'normalization',
-     &                         normalize_opt)
+      ncstat = nf90_get_att(nc_file_id, NF90_GLOBAL, 'normalization',
+     &                      normalize_opt)
       call netcdf_error_handler(ncstat)
 
       select case(normalize_opt)
@@ -164,8 +164,8 @@
       !*** map method
       !***
       map_method = ' '
-      ncstat = nf_get_att_text (nc_file_id, NF_GLOBAL, 'map_method',
-     &                          map_method)
+      ncstat = nf90_get_att(nc_file_id, NF90_GLOBAL, 'map_method',
+     &                      map_method)
       call netcdf_error_handler(ncstat)
 
       select case(map_method)
@@ -186,8 +186,8 @@
       !*** file convention
       !***
       convention = ' '
-      ncstat = nf_get_att_text (nc_file_id, NF_GLOBAL, 'conventions',
-     &                          convention)
+      ncstat = nf90_get_att(nc_file_id, NF90_GLOBAL, 'conventions',
+     &                      convention)
       call netcdf_error_handler(ncstat)
 
 !-----------------------------------------------------------------------
@@ -249,12 +249,12 @@
 
       grid1_name = ' '
       grid2_name = ' '
-      ncstat = nf_get_att_text (nc_file_id, NF_GLOBAL, 'source_grid',
-     &                          grid1_name)
+      ncstat = nf90_get_att(nc_file_id, NF90_GLOBAL, 'source_grid',
+     &                      grid1_name)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_get_att_text (nc_file_id, NF_GLOBAL, 'dest_grid',
-     &                          grid2_name)
+      ncstat = nf90_get_att(nc_file_id, NF90_GLOBAL, 'dest_grid',
+     &                      grid2_name)
       call netcdf_error_handler(ncstat)
 
       print *,' '
@@ -268,57 +268,60 @@
 !
 !-----------------------------------------------------------------------
 
-      ncstat = nf_inq_dimid(nc_file_id, 'src_grid_size', 
-     &                      nc_srcgrdsize_id)
+      ncstat = nf90_inq_dimid(nc_file_id, 'src_grid_size', 
+     &                        nc_srcgrdsize_id)
       call netcdf_error_handler(ncstat)
-      ncstat = nf_inq_dimlen(nc_file_id, nc_srcgrdsize_id, grid1_size)
-      call netcdf_error_handler(ncstat)
-
-      ncstat = nf_inq_dimid(nc_file_id, 'dst_grid_size', 
-     &                      nc_dstgrdsize_id)
-      call netcdf_error_handler(ncstat)
-      ncstat = nf_inq_dimlen(nc_file_id, nc_dstgrdsize_id, grid2_size)
+      ncstat = nf90_inquire_dimension(nc_file_id, nc_srcgrdsize_id, 
+     &                                len=grid1_size)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_inq_dimid(nc_file_id, 'src_grid_corners', 
-     &                      nc_srcgrdcorn_id)
+      ncstat = nf90_inq_dimid(nc_file_id, 'dst_grid_size', 
+     &                        nc_dstgrdsize_id)
       call netcdf_error_handler(ncstat)
-      ncstat = nf_inq_dimlen(nc_file_id, nc_srcgrdcorn_id, 
-     &                       grid1_corners)
-      call netcdf_error_handler(ncstat)
-
-      ncstat = nf_inq_dimid(nc_file_id, 'dst_grid_corners', 
-     &                      nc_dstgrdcorn_id)
-      call netcdf_error_handler(ncstat)
-      ncstat = nf_inq_dimlen(nc_file_id, nc_dstgrdcorn_id, 
-     &                       grid2_corners)
+      ncstat = nf90_inquire_dimension(nc_file_id, nc_dstgrdsize_id, 
+     &                                len=grid2_size)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_inq_dimid(nc_file_id, 'src_grid_rank', 
-     &                      nc_srcgrdrank_id)
+      ncstat = nf90_inq_dimid(nc_file_id, 'src_grid_corners', 
+     &                        nc_srcgrdcorn_id)
       call netcdf_error_handler(ncstat)
-      ncstat = nf_inq_dimlen(nc_file_id, nc_srcgrdrank_id, 
-     &                       grid1_rank)
-      call netcdf_error_handler(ncstat)
-
-      ncstat = nf_inq_dimid(nc_file_id, 'dst_grid_rank', 
-     &                      nc_dstgrdrank_id)
-      call netcdf_error_handler(ncstat)
-      ncstat = nf_inq_dimlen(nc_file_id, nc_dstgrdrank_id, 
-     &                       grid2_rank)
+      ncstat = nf90_inquire_dimension(nc_file_id, nc_srcgrdcorn_id, 
+     &                                len=grid1_corners)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_inq_dimid(nc_file_id, 'num_links', 
-     &                      nc_numlinks_id)
+      ncstat = nf90_inq_dimid(nc_file_id, 'dst_grid_corners', 
+     &                        nc_dstgrdcorn_id)
       call netcdf_error_handler(ncstat)
-      ncstat = nf_inq_dimlen(nc_file_id, nc_numlinks_id, 
-     &                       num_links_map1)
+      ncstat = nf90_inquire_dimension(nc_file_id, nc_dstgrdcorn_id, 
+     &                                len=grid2_corners)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_inq_dimid(nc_file_id, 'num_wgts', 
-     &                      nc_numwgts_id)
+      ncstat = nf90_inq_dimid(nc_file_id, 'src_grid_rank', 
+     &                        nc_srcgrdrank_id)
       call netcdf_error_handler(ncstat)
-      ncstat = nf_inq_dimlen(nc_file_id, nc_numwgts_id, num_wts)
+      ncstat = nf90_inquire_dimension(nc_file_id, nc_srcgrdrank_id, 
+     &                                len=grid1_rank)
+      call netcdf_error_handler(ncstat)
+
+      ncstat = nf90_inq_dimid(nc_file_id, 'dst_grid_rank', 
+     &                        nc_dstgrdrank_id)
+      call netcdf_error_handler(ncstat)
+      ncstat = nf90_inquire_dimension(nc_file_id, nc_dstgrdrank_id, 
+     &                                len=grid2_rank)
+      call netcdf_error_handler(ncstat)
+
+      ncstat = nf90_inq_dimid(nc_file_id, 'num_links', 
+     &                        nc_numlinks_id)
+      call netcdf_error_handler(ncstat)
+      ncstat = nf90_inquire_dimension(nc_file_id, nc_numlinks_id, 
+     &                                len=num_links_map1)
+      call netcdf_error_handler(ncstat)
+
+      ncstat = nf90_inq_dimid(nc_file_id, 'num_wgts', 
+     &                        nc_numwgts_id)
+      call netcdf_error_handler(ncstat)
+      ncstat = nf90_inquire_dimension(nc_file_id, nc_numwgts_id,
+     &                                len=num_wts)
       call netcdf_error_handler(ncstat)
 
 !-----------------------------------------------------------------------
@@ -357,80 +360,80 @@
 !
 !-----------------------------------------------------------------------
 
-      ncstat = nf_inq_varid(nc_file_id, 'src_grid_dims', 
-     &                      nc_srcgrddims_id)
+      ncstat = nf90_inq_varid(nc_file_id, 'src_grid_dims', 
+     &                        nc_srcgrddims_id)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_inq_varid(nc_file_id, 'src_grid_imask', 
-     &                      nc_srcgrdimask_id)
+      ncstat = nf90_inq_varid(nc_file_id, 'src_grid_imask', 
+     &                        nc_srcgrdimask_id)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_inq_varid(nc_file_id, 'src_grid_center_lat', 
-     &                                   nc_srcgrdcntrlat_id)
+      ncstat = nf90_inq_varid(nc_file_id, 'src_grid_center_lat', 
+     &                        nc_srcgrdcntrlat_id)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_inq_varid(nc_file_id, 'src_grid_center_lon', 
-     &                                   nc_srcgrdcntrlon_id)
+      ncstat = nf90_inq_varid(nc_file_id, 'src_grid_center_lon', 
+     &                        nc_srcgrdcntrlon_id)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_inq_varid(nc_file_id, 'src_grid_corner_lat', 
-     &                                   nc_srcgrdcrnrlat_id)
+      ncstat = nf90_inq_varid(nc_file_id, 'src_grid_corner_lat', 
+     &                        nc_srcgrdcrnrlat_id)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_inq_varid(nc_file_id, 'src_grid_corner_lon', 
-     &                                   nc_srcgrdcrnrlon_id)
+      ncstat = nf90_inq_varid(nc_file_id, 'src_grid_corner_lon', 
+     &                        nc_srcgrdcrnrlon_id)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_inq_varid(nc_file_id, 'src_grid_area', 
-     &                                   nc_srcgrdarea_id)
+      ncstat = nf90_inq_varid(nc_file_id, 'src_grid_area', 
+     &                        nc_srcgrdarea_id)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_inq_varid(nc_file_id, 'src_grid_frac', 
-     &                                   nc_srcgrdfrac_id)
+      ncstat = nf90_inq_varid(nc_file_id, 'src_grid_frac', 
+     &                        nc_srcgrdfrac_id)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_inq_varid(nc_file_id, 'dst_grid_dims', 
-     &                      nc_dstgrddims_id)
+      ncstat = nf90_inq_varid(nc_file_id, 'dst_grid_dims', 
+     &                        nc_dstgrddims_id)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_inq_varid(nc_file_id, 'dst_grid_imask', 
-     &                      nc_dstgrdimask_id)
+      ncstat = nf90_inq_varid(nc_file_id, 'dst_grid_imask', 
+     &                        nc_dstgrdimask_id)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_inq_varid(nc_file_id, 'dst_grid_center_lat', 
-     &                                   nc_dstgrdcntrlat_id)
+      ncstat = nf90_inq_varid(nc_file_id, 'dst_grid_center_lat', 
+     &                        nc_dstgrdcntrlat_id)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_inq_varid(nc_file_id, 'dst_grid_center_lon', 
-     &                                   nc_dstgrdcntrlon_id)
+      ncstat = nf90_inq_varid(nc_file_id, 'dst_grid_center_lon', 
+     &                        nc_dstgrdcntrlon_id)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_inq_varid(nc_file_id, 'dst_grid_corner_lat', 
-     &                                   nc_dstgrdcrnrlat_id)
+      ncstat = nf90_inq_varid(nc_file_id, 'dst_grid_corner_lat', 
+     &                        nc_dstgrdcrnrlat_id)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_inq_varid(nc_file_id, 'dst_grid_corner_lon', 
-     &                                   nc_dstgrdcrnrlon_id)
+      ncstat = nf90_inq_varid(nc_file_id, 'dst_grid_corner_lon', 
+     &                        nc_dstgrdcrnrlon_id)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_inq_varid(nc_file_id, 'dst_grid_area', 
-     &                                   nc_dstgrdarea_id)
+      ncstat = nf90_inq_varid(nc_file_id, 'dst_grid_area', 
+     &                        nc_dstgrdarea_id)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_inq_varid(nc_file_id, 'dst_grid_frac', 
-     &                                   nc_dstgrdfrac_id)
+      ncstat = nf90_inq_varid(nc_file_id, 'dst_grid_frac', 
+     &                        nc_dstgrdfrac_id)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_inq_varid(nc_file_id, 'src_address', 
-     &                                   nc_srcgrdadd_id)
+      ncstat = nf90_inq_varid(nc_file_id, 'src_address', 
+     &                        nc_srcgrdadd_id)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_inq_varid(nc_file_id, 'dst_address', 
-     &                                   nc_dstgrdadd_id)
+      ncstat = nf90_inq_varid(nc_file_id, 'dst_address', 
+     &                        nc_dstgrdadd_id)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_inq_varid(nc_file_id, 'remap_matrix', 
-     &                                   nc_rmpmatrix_id)
+      ncstat = nf90_inq_varid(nc_file_id, 'remap_matrix', 
+     &                        nc_rmpmatrix_id)
       call netcdf_error_handler(ncstat)
 
 !-----------------------------------------------------------------------
@@ -439,25 +442,25 @@
 !
 !-----------------------------------------------------------------------
 
-      ncstat = nf_get_var_int(nc_file_id, nc_srcgrddims_id, 
-     &                        grid1_dims)
+      ncstat = nf90_get_var(nc_file_id, nc_srcgrddims_id, 
+     &                      grid1_dims)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_get_var_int(nc_file_id, nc_srcgrdimask_id, 
-     &                        grid1_mask_int)
+      ncstat = nf90_get_var(nc_file_id, nc_srcgrdimask_id, 
+     &                      grid1_mask_int)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_get_var_double(nc_file_id, nc_srcgrdcntrlat_id, 
-     &                                       grid1_center_lat)
+      ncstat = nf90_get_var(nc_file_id, nc_srcgrdcntrlat_id, 
+     &                      grid1_center_lat)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_get_var_double(nc_file_id, nc_srcgrdcntrlon_id, 
-     &                                       grid1_center_lon)
+      ncstat = nf90_get_var(nc_file_id, nc_srcgrdcntrlon_id, 
+     &                      grid1_center_lon)
       call netcdf_error_handler(ncstat)
 
       grid1_units = ' '
-      ncstat = nf_get_att_text(nc_file_id, nc_srcgrdcntrlat_id, 'units',
-     &                         grid1_units)
+      ncstat = nf90_get_att(nc_file_id, nc_srcgrdcntrlat_id, 'units',
+     &                      grid1_units)
       call netcdf_error_handler(ncstat)
 
       select case (grid1_units(1:7))
@@ -471,17 +474,17 @@
         print *,'proceeding assuming radians'
       end select
 
-      ncstat = nf_get_var_double(nc_file_id, nc_srcgrdcrnrlat_id, 
-     &                                       grid1_corner_lat)
+      ncstat = nf90_get_var(nc_file_id, nc_srcgrdcrnrlat_id, 
+     &                      grid1_corner_lat)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_get_var_double(nc_file_id, nc_srcgrdcrnrlon_id, 
-     &                                       grid1_corner_lon)
+      ncstat = nf90_get_var(nc_file_id, nc_srcgrdcrnrlon_id, 
+     &                      grid1_corner_lon)
       call netcdf_error_handler(ncstat)
 
       grid1_units = ' '
-      ncstat = nf_get_att_text(nc_file_id, nc_srcgrdcrnrlat_id, 'units',
-     &                         grid1_units)
+      ncstat = nf90_get_att(nc_file_id, nc_srcgrdcrnrlat_id, 'units',
+     &                      grid1_units)
       call netcdf_error_handler(ncstat)
 
       select case (grid1_units(1:7))
@@ -495,33 +498,33 @@
         print *,'proceeding assuming radians'
       end select
 
-      ncstat = nf_get_var_double(nc_file_id, nc_srcgrdarea_id, 
-     &                                       grid1_area)
+      ncstat = nf90_get_var(nc_file_id, nc_srcgrdarea_id, 
+     &                      grid1_area)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_get_var_double(nc_file_id, nc_srcgrdfrac_id, 
-     &                                       grid1_frac)
+      ncstat = nf90_get_var(nc_file_id, nc_srcgrdfrac_id, 
+     &                      grid1_frac)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_get_var_int(nc_file_id, nc_dstgrddims_id, 
-     &                        grid2_dims)
+      ncstat = nf90_get_var(nc_file_id, nc_dstgrddims_id, 
+     &                      grid2_dims)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_get_var_int(nc_file_id, nc_dstgrdimask_id, 
-     &                        grid2_mask_int)
+      ncstat = nf90_get_var(nc_file_id, nc_dstgrdimask_id, 
+     &                      grid2_mask_int)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_get_var_double(nc_file_id, nc_dstgrdcntrlat_id, 
-     &                                       grid2_center_lat)
+      ncstat = nf90_get_var(nc_file_id, nc_dstgrdcntrlat_id, 
+     &                      grid2_center_lat)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_get_var_double(nc_file_id, nc_dstgrdcntrlon_id, 
-     &                                       grid2_center_lon)
+      ncstat = nf90_get_var(nc_file_id, nc_dstgrdcntrlon_id, 
+     &                      grid2_center_lon)
       call netcdf_error_handler(ncstat)
 
       grid2_units = ' '
-      ncstat = nf_get_att_text(nc_file_id, nc_dstgrdcntrlat_id, 'units',
-     &                         grid2_units)
+      ncstat = nf90_get_att(nc_file_id, nc_dstgrdcntrlat_id, 'units',
+     &                      grid2_units)
       call netcdf_error_handler(ncstat)
 
       select case (grid2_units(1:7))
@@ -535,17 +538,17 @@
         print *,'proceeding assuming radians'
       end select
 
-      ncstat = nf_get_var_double(nc_file_id, nc_dstgrdcrnrlat_id, 
-     &                                       grid2_corner_lat)
+      ncstat = nf90_get_var(nc_file_id, nc_dstgrdcrnrlat_id, 
+     &                      grid2_corner_lat)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_get_var_double(nc_file_id, nc_dstgrdcrnrlon_id, 
-     &                                       grid2_corner_lon)
+      ncstat = nf90_get_var(nc_file_id, nc_dstgrdcrnrlon_id, 
+     &                      grid2_corner_lon)
       call netcdf_error_handler(ncstat)
 
       grid2_units = ' '
-      ncstat = nf_get_att_text(nc_file_id, nc_dstgrdcrnrlat_id, 'units',
-     &                         grid2_units)
+      ncstat = nf90_get_att(nc_file_id, nc_dstgrdcrnrlat_id, 'units',
+     &                      grid2_units)
       call netcdf_error_handler(ncstat)
 
       select case (grid2_units(1:7))
@@ -559,24 +562,24 @@
         print *,'proceeding assuming radians'
       end select
 
-      ncstat = nf_get_var_double(nc_file_id, nc_dstgrdarea_id, 
-     &                                       grid2_area)
+      ncstat = nf90_get_var(nc_file_id, nc_dstgrdarea_id, 
+     &                      grid2_area)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_get_var_double(nc_file_id, nc_dstgrdfrac_id, 
-     &                                       grid2_frac)
+      ncstat = nf90_get_var(nc_file_id, nc_dstgrdfrac_id, 
+     &                      grid2_frac)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_get_var_int(nc_file_id, nc_srcgrdadd_id, 
-     &                        grid1_add_map1)
+      ncstat = nf90_get_var(nc_file_id, nc_srcgrdadd_id, 
+     &                      grid1_add_map1)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_get_var_int(nc_file_id, nc_dstgrdadd_id, 
-     &                        grid2_add_map1)
+      ncstat = nf90_get_var(nc_file_id, nc_dstgrdadd_id, 
+     &                      grid2_add_map1)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_get_var_double(nc_file_id, nc_rmpmatrix_id, 
-     &                                       wts_map1)
+      ncstat = nf90_get_var(nc_file_id, nc_rmpmatrix_id, 
+     &                      wts_map1)
       call netcdf_error_handler(ncstat)
 
 !-----------------------------------------------------------------------
@@ -603,7 +606,7 @@
 !
 !-----------------------------------------------------------------------
 
-      ncstat = nf_close(nc_file_id)
+      ncstat = nf90_close(nc_file_id)
       call netcdf_error_handler(ncstat)
 
 !-----------------------------------------------------------------------
@@ -659,12 +662,12 @@
 
       grid1_name = ' '
       grid2_name = ' '
-      ncstat = nf_get_att_text (nc_file_id, NF_GLOBAL, 'domain_a',
-     &                          grid1_name)
+      ncstat = nf90_get_att(nc_file_id, NF90_GLOBAL, 'domain_a',
+     &                      grid1_name)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_get_att_text (nc_file_id, NF_GLOBAL, 'domain_b',
-     &                          grid2_name)
+      ncstat = nf90_get_att(nc_file_id, NF90_GLOBAL, 'domain_b',
+     &                      grid2_name)
       call netcdf_error_handler(ncstat)
 
       print *,' '
@@ -678,58 +681,60 @@
 !
 !-----------------------------------------------------------------------
 
-      ncstat = nf_inq_dimid(nc_file_id, 'n_a', nc_srcgrdsize_id)
+      ncstat = nf90_inq_dimid(nc_file_id, 'n_a', nc_srcgrdsize_id)
       call netcdf_error_handler(ncstat)
-      ncstat = nf_inq_dimlen(nc_file_id, nc_srcgrdsize_id, grid1_size)
-      call netcdf_error_handler(ncstat)
-
-      ncstat = nf_inq_dimid(nc_file_id, 'n_b', nc_dstgrdsize_id)
-      call netcdf_error_handler(ncstat)
-      ncstat = nf_inq_dimlen(nc_file_id, nc_dstgrdsize_id, grid2_size)
+      ncstat = nf90_inquire_dimension(nc_file_id, nc_srcgrdsize_id, 
+     &                                len=grid1_size)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_inq_dimid(nc_file_id, 'nv_a', nc_srcgrdcorn_id)
+      ncstat = nf90_inq_dimid(nc_file_id, 'n_b', nc_dstgrdsize_id)
       call netcdf_error_handler(ncstat)
-      ncstat = nf_inq_dimlen(nc_file_id, nc_srcgrdcorn_id, 
-     &                       grid1_corners)
-      call netcdf_error_handler(ncstat)
-
-      ncstat = nf_inq_dimid(nc_file_id, 'nv_b', nc_dstgrdcorn_id)
-      call netcdf_error_handler(ncstat)
-      ncstat = nf_inq_dimlen(nc_file_id, nc_dstgrdcorn_id, 
-     &                       grid2_corners)
+      ncstat = nf90_inquire_dimension(nc_file_id, nc_dstgrdsize_id, 
+     &                                len=grid2_size)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_inq_dimid(nc_file_id, 'src_grid_rank', 
-     &                      nc_srcgrdrank_id)
+      ncstat = nf90_inq_dimid(nc_file_id, 'nv_a', nc_srcgrdcorn_id)
       call netcdf_error_handler(ncstat)
-      ncstat = nf_inq_dimlen(nc_file_id, nc_srcgrdrank_id, 
-     &                       grid1_rank)
-      call netcdf_error_handler(ncstat)
-
-      ncstat = nf_inq_dimid(nc_file_id, 'dst_grid_rank', 
-     &                      nc_dstgrdrank_id)
-      call netcdf_error_handler(ncstat)
-      ncstat = nf_inq_dimlen(nc_file_id, nc_dstgrdrank_id, 
-     &                       grid2_rank)
+      ncstat = nf90_inquire_dimension(nc_file_id, nc_srcgrdcorn_id, 
+     &                                len=grid1_corners)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_inq_dimid(nc_file_id, 'n_s', 
-     &                      nc_numlinks_id)
+      ncstat = nf90_inq_dimid(nc_file_id, 'nv_b', nc_dstgrdcorn_id)
       call netcdf_error_handler(ncstat)
-      ncstat = nf_inq_dimlen(nc_file_id, nc_numlinks_id, 
-     &                       num_links_map1)
+      ncstat = nf90_inquire_dimension(nc_file_id, nc_dstgrdcorn_id, 
+     &                                len=grid2_corners)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_inq_dimid(nc_file_id, 'num_wgts', 
-     &                      nc_numwgts_id)
+      ncstat = nf90_inq_dimid(nc_file_id, 'src_grid_rank', 
+     &                        nc_srcgrdrank_id)
       call netcdf_error_handler(ncstat)
-      ncstat = nf_inq_dimlen(nc_file_id, nc_numwgts_id, num_wts)
+      ncstat = nf90_inquire_dimension(nc_file_id, nc_srcgrdrank_id, 
+     &                                len=grid1_rank)
+      call netcdf_error_handler(ncstat)
+
+      ncstat = nf90_inq_dimid(nc_file_id, 'dst_grid_rank', 
+     &                        nc_dstgrdrank_id)
+      call netcdf_error_handler(ncstat)
+      ncstat = nf90_inquire_dimension(nc_file_id, nc_dstgrdrank_id, 
+     &                                len=grid2_rank)
+      call netcdf_error_handler(ncstat)
+
+      ncstat = nf90_inq_dimid(nc_file_id, 'n_s', nc_numlinks_id)
+      call netcdf_error_handler(ncstat)
+      ncstat = nf90_inquire_dimension(nc_file_id, nc_numlinks_id, 
+     &                                len=num_links_map1)
+      call netcdf_error_handler(ncstat)
+
+      ncstat = nf90_inq_dimid(nc_file_id, 'num_wgts', 
+     &                        nc_numwgts_id)
+      call netcdf_error_handler(ncstat)
+      ncstat = nf90_inquire_dimension(nc_file_id, nc_numwgts_id, 
+     &                                len=num_wts)
       call netcdf_error_handler(ncstat)
 
       if (num_wts > 1) then
-        ncstat = nf_inq_dimid(nc_file_id, 'num_wgts1', 
-     &                        nc_numwgts1_id)
+        ncstat = nf90_inq_dimid(nc_file_id, 'num_wgts1', 
+     &                          nc_numwgts1_id)
         call netcdf_error_handler(ncstat)
       endif
 
@@ -771,69 +776,69 @@
 !
 !-----------------------------------------------------------------------
 
-      ncstat = nf_inq_varid(nc_file_id, 'src_grid_dims', 
-     &                      nc_srcgrddims_id)
+      ncstat = nf90_inq_varid(nc_file_id, 'src_grid_dims', 
+     &                        nc_srcgrddims_id)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_inq_varid(nc_file_id, 'mask_a', 
-     &                      nc_srcgrdimask_id)
+      ncstat = nf90_inq_varid(nc_file_id, 'mask_a', 
+     &                        nc_srcgrdimask_id)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_inq_varid(nc_file_id, 'yc_a', nc_srcgrdcntrlat_id)
+      ncstat = nf90_inq_varid(nc_file_id, 'yc_a', nc_srcgrdcntrlat_id)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_inq_varid(nc_file_id, 'xc_a', nc_srcgrdcntrlon_id)
+      ncstat = nf90_inq_varid(nc_file_id, 'xc_a', nc_srcgrdcntrlon_id)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_inq_varid(nc_file_id, 'yv_a', nc_srcgrdcrnrlat_id)
+      ncstat = nf90_inq_varid(nc_file_id, 'yv_a', nc_srcgrdcrnrlat_id)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_inq_varid(nc_file_id, 'xv_a', nc_srcgrdcrnrlon_id)
+      ncstat = nf90_inq_varid(nc_file_id, 'xv_a', nc_srcgrdcrnrlon_id)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_inq_varid(nc_file_id, 'area_a', nc_srcgrdarea_id)
+      ncstat = nf90_inq_varid(nc_file_id, 'area_a', nc_srcgrdarea_id)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_inq_varid(nc_file_id, 'frac_a', nc_srcgrdfrac_id)
+      ncstat = nf90_inq_varid(nc_file_id, 'frac_a', nc_srcgrdfrac_id)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_inq_varid(nc_file_id, 'dst_grid_dims', 
+      ncstat = nf90_inq_varid(nc_file_id, 'dst_grid_dims', 
      &                      nc_dstgrddims_id)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_inq_varid(nc_file_id, 'mask_b', 
+      ncstat = nf90_inq_varid(nc_file_id, 'mask_b', 
      &                      nc_dstgrdimask_id)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_inq_varid(nc_file_id, 'yc_b', nc_dstgrdcntrlat_id)
+      ncstat = nf90_inq_varid(nc_file_id, 'yc_b', nc_dstgrdcntrlat_id)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_inq_varid(nc_file_id, 'xc_b', nc_dstgrdcntrlon_id)
+      ncstat = nf90_inq_varid(nc_file_id, 'xc_b', nc_dstgrdcntrlon_id)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_inq_varid(nc_file_id, 'yv_b', nc_dstgrdcrnrlat_id)
+      ncstat = nf90_inq_varid(nc_file_id, 'yv_b', nc_dstgrdcrnrlat_id)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_inq_varid(nc_file_id, 'xv_b', nc_dstgrdcrnrlon_id)
+      ncstat = nf90_inq_varid(nc_file_id, 'xv_b', nc_dstgrdcrnrlon_id)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_inq_varid(nc_file_id, 'area_b', nc_dstgrdarea_id)
+      ncstat = nf90_inq_varid(nc_file_id, 'area_b', nc_dstgrdarea_id)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_inq_varid(nc_file_id, 'frac_b', nc_dstgrdfrac_id)
+      ncstat = nf90_inq_varid(nc_file_id, 'frac_b', nc_dstgrdfrac_id)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_inq_varid(nc_file_id, 'col', nc_srcgrdadd_id)
+      ncstat = nf90_inq_varid(nc_file_id, 'col', nc_srcgrdadd_id)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_inq_varid(nc_file_id, 'row', nc_dstgrdadd_id)
+      ncstat = nf90_inq_varid(nc_file_id, 'row', nc_dstgrdadd_id)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_inq_varid(nc_file_id, 'S', nc_rmpmatrix_id)
+      ncstat = nf90_inq_varid(nc_file_id, 'S', nc_rmpmatrix_id)
       call netcdf_error_handler(ncstat)
 
       if (num_wts > 1) then
-        ncstat = nf_inq_varid(nc_file_id, 'S2', nc_rmpmatrix2_id)
+        ncstat = nf90_inq_varid(nc_file_id, 'S2', nc_rmpmatrix2_id)
         call netcdf_error_handler(ncstat)
       endif
 
@@ -843,24 +848,23 @@
 !
 !-----------------------------------------------------------------------
 
-      ncstat = nf_get_var_int(nc_file_id, nc_srcgrddims_id, 
-     &                        grid1_dims)
+      ncstat = nf90_get_var(nc_file_id, nc_srcgrddims_id, grid1_dims)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_get_var_int(nc_file_id, nc_srcgrdimask_id, 
-     &                        grid1_mask_int)
+      ncstat = nf90_get_var(nc_file_id, nc_srcgrdimask_id, 
+     &                      grid1_mask_int)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_get_var_double(nc_file_id, nc_srcgrdcntrlat_id, 
-     &                                       grid1_center_lat)
+      ncstat = nf90_get_var(nc_file_id, nc_srcgrdcntrlat_id, 
+     &                      grid1_center_lat)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_get_var_double(nc_file_id, nc_srcgrdcntrlon_id, 
-     &                                       grid1_center_lon)
+      ncstat = nf90_get_var(nc_file_id, nc_srcgrdcntrlon_id, 
+     &                      grid1_center_lon)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_get_att_text(nc_file_id, nc_srcgrdcntrlat_id, 'units',
-     &                         grid1_units)
+      ncstat = nf90_get_att(nc_file_id, nc_srcgrdcntrlat_id, 'units',
+     &                      grid1_units)
       call netcdf_error_handler(ncstat)
 
       select case (grid1_units(1:7))
@@ -874,16 +878,16 @@
         print *,'proceeding assuming radians'
       end select
 
-      ncstat = nf_get_var_double(nc_file_id, nc_srcgrdcrnrlat_id, 
-     &                                       grid1_corner_lat)
+      ncstat = nf90_get_var(nc_file_id, nc_srcgrdcrnrlat_id, 
+     &                      grid1_corner_lat)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_get_var_double(nc_file_id, nc_srcgrdcrnrlon_id, 
-     &                                       grid1_corner_lon)
+      ncstat = nf90_get_var(nc_file_id, nc_srcgrdcrnrlon_id, 
+     &                      grid1_corner_lon)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_get_att_text(nc_file_id, nc_srcgrdcrnrlat_id, 'units',
-     &                         grid1_units)
+      ncstat = nf90_get_att(nc_file_id, nc_srcgrdcrnrlat_id, 'units',
+     &                      grid1_units)
       call netcdf_error_handler(ncstat)
 
       select case (grid1_units(1:7))
@@ -897,32 +901,32 @@
         print *,'proceeding assuming radians'
       end select
 
-      ncstat = nf_get_var_double(nc_file_id, nc_srcgrdarea_id, 
-     &                                       grid1_area)
+      ncstat = nf90_get_var(nc_file_id, nc_srcgrdarea_id, 
+     &                      grid1_area)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_get_var_double(nc_file_id, nc_srcgrdfrac_id, 
-     &                                       grid1_frac)
+      ncstat = nf90_get_var(nc_file_id, nc_srcgrdfrac_id, 
+     &                      grid1_frac)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_get_var_int(nc_file_id, nc_dstgrddims_id, 
-     &                        grid2_dims)
+      ncstat = nf90_get_var(nc_file_id, nc_dstgrddims_id, 
+     &                      grid2_dims)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_get_var_int(nc_file_id, nc_dstgrdimask_id, 
-     &                        grid2_mask_int)
+      ncstat = nf90_get_var(nc_file_id, nc_dstgrdimask_id, 
+     &                      grid2_mask_int)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_get_var_double(nc_file_id, nc_dstgrdcntrlat_id, 
-     &                                       grid2_center_lat)
+      ncstat = nf90_get_var(nc_file_id, nc_dstgrdcntrlat_id, 
+     &                      grid2_center_lat)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_get_var_double(nc_file_id, nc_dstgrdcntrlon_id, 
-     &                                       grid2_center_lon)
+      ncstat = nf90_get_var(nc_file_id, nc_dstgrdcntrlon_id, 
+     &                      grid2_center_lon)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_get_att_text(nc_file_id, nc_dstgrdcntrlat_id, 'units',
-     &                         grid2_units)
+      ncstat = nf90_get_att(nc_file_id, nc_dstgrdcntrlat_id, 'units',
+     &                      grid2_units)
       call netcdf_error_handler(ncstat)
 
       select case (grid2_units(1:7))
@@ -936,17 +940,17 @@
         print *,'proceeding assuming radians'
       end select
 
-      ncstat = nf_get_var_double(nc_file_id, nc_dstgrdcrnrlat_id, 
-     &                                       grid2_corner_lat)
+      ncstat = nf90_get_var(nc_file_id, nc_dstgrdcrnrlat_id, 
+     &                      grid2_corner_lat)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_get_var_double(nc_file_id, nc_dstgrdcrnrlon_id, 
-     &                                       grid2_corner_lon)
+      ncstat = nf90_get_var(nc_file_id, nc_dstgrdcrnrlon_id, 
+     &                      grid2_corner_lon)
       call netcdf_error_handler(ncstat)
 
 
-      ncstat = nf_get_att_text(nc_file_id, nc_dstgrdcrnrlat_id, 'units',
-     &                         grid2_units)
+      ncstat = nf90_get_att(nc_file_id, nc_dstgrdcrnrlat_id, 'units',
+     &                      grid2_units)
       call netcdf_error_handler(ncstat)
 
       select case (grid2_units(1:7))
@@ -960,30 +964,28 @@
         print *,'proceeding assuming radians'
       end select
 
-      ncstat = nf_get_var_double(nc_file_id, nc_dstgrdarea_id, 
-     &                                       grid2_area)
+      ncstat = nf90_get_var(nc_file_id, nc_dstgrdarea_id, 
+     &                      grid2_area)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_get_var_double(nc_file_id, nc_dstgrdfrac_id, 
-     &                                       grid2_frac)
+      ncstat = nf90_get_var(nc_file_id, nc_dstgrdfrac_id, 
+     &                      grid2_frac)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_get_var_int(nc_file_id, nc_srcgrdadd_id, 
-     &                        grid1_add_map1)
+      ncstat = nf90_get_var(nc_file_id, nc_srcgrdadd_id, 
+     &                      grid1_add_map1)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_get_var_int(nc_file_id, nc_dstgrdadd_id, 
-     &                        grid2_add_map1)
+      ncstat = nf90_get_var(nc_file_id, nc_dstgrdadd_id, 
+     &                      grid2_add_map1)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_get_var_double(nc_file_id, nc_rmpmatrix_id, 
-     &                                       wts1)
+      ncstat = nf90_get_var(nc_file_id, nc_rmpmatrix_id, wts1)
       wts_map1(1,:) = wts1
       deallocate(wts1)
 
       if (num_wts > 1) then
-        ncstat = nf_get_var_double(nc_file_id, nc_rmpmatrix2_id, 
-     &                                         wts2)
+        ncstat = nf90_get_var(nc_file_id, nc_rmpmatrix2_id, wts2)
         wts_map1(2:,:) = wts2
         deallocate(wts2)
       endif
@@ -1013,7 +1015,7 @@
 !
 !-----------------------------------------------------------------------
 
-      ncstat = nf_close(nc_file_id)
+      ncstat = nf90_close(nc_file_id)
       call netcdf_error_handler(ncstat)
 
 !-----------------------------------------------------------------------

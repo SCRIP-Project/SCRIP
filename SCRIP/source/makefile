@@ -4,11 +4,22 @@
 #
 # CVS:$Id: makefile,v 1.7 2000/04/19 21:46:44 pwjones Exp $
 #
-#COMPILE = xlf
-COMPILE = f90
-FLAGS = -O3 -r10000 -64 -I/usr/local/include
-#FLAGS = -g -DEBUG:div_check=3:subscript_check=ON:trap_uninitialized=ON:verbose_runtime=ON -r10000 -64 -I/usr/local/include 
-LIB  =  -lnetcdf 
+
+COMPILE = f95
+
+#NETCDFINC = -I/netcdf_include_path
+#NETCDFLIB = -L/netcdf_library_path
+NETCDFINC = -p/sw/include 
+NETCDFLIB = -L/sw/lib
+
+#FLAGS = -O3 $(NETCDFINC) 
+FLAGS = -g $(NETCDFINC) 
+#FLAGS := $(FBASE) -B80 -Rb -Rc -Rs -trap=ALL
+#FLAGS := $(FBASE) -Rb -Rc -Rs -B80 -trap=DIVBYZERO,INVALID
+#FLAGS := $(FBASE) -Rc -Rs -trap=DIVBYZERO,INVALID
+ 
+LIB  = $(NETCDFLIB) -lnetcdf
+
 INCLUDE = 
 SRCDIR  = .
 EXEDIR  = ..
