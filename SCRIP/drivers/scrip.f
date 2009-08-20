@@ -36,7 +36,7 @@
 
 !-----------------------------------------------------------------------
 
-      use kinds_mod                  ! module defining data types
+      use SCRIP_KindsMod             ! module defining data types
       use constants                  ! module for common constants
       use iounits                    ! I/O unit manager
       use timers                     ! CPU timers
@@ -56,7 +56,7 @@
 !
 !-----------------------------------------------------------------------
 
-      character (char_len) :: 
+      character (SCRIP_charLength) :: 
      &           grid1_file,   ! filename of grid file containing grid1
      &           grid2_file,   ! filename of grid file containing grid2
      &           interp_file1, ! filename for output remap data (map1)
@@ -67,7 +67,7 @@
      &           normalize_opt,! option for normalizing weights
      &           output_opt    ! option for output conventions
 
-      integer (kind=int_kind) ::
+      integer (SCRIP_i4) ::
      &           nmap          ! number of mappings to compute (1 or 2)
 
       namelist /remap_inputs/ grid1_file, grid2_file, 
@@ -83,7 +83,7 @@
 !
 !-----------------------------------------------------------------------
 
-      integer (kind=int_kind) :: n,     ! dummy counter
+      integer (SCRIP_i4) :: n,     ! dummy counter
      &                           iunit  ! unit number for namelist file
 
 !-----------------------------------------------------------------------

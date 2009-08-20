@@ -38,7 +38,7 @@
 
 !-----------------------------------------------------------------------
 
-      use kinds_mod    ! defines data types
+      use SCRIP_KindsMod    ! defines data types
       use constants    ! common constants
       use iounits      ! I/O unit manager
       use netcdf_mod   ! netCDF stuff
@@ -52,23 +52,23 @@
 !
 !-----------------------------------------------------------------------
 
-      integer (kind=int_kind), save ::
+      integer (SCRIP_i4), save ::
      &             grid1_size, grid2_size, ! total points on each grid
      &             grid1_rank, grid2_rank, ! rank of each grid
      &             grid1_corners, grid2_corners ! number of corners
                                                 ! for each grid cell
 
-      integer (kind=int_kind), dimension(:), allocatable, save ::
+      integer (SCRIP_i4), dimension(:), allocatable, save ::
      &             grid1_dims, grid2_dims  ! size of each grid dimension
 
-      character(char_len), save :: 
+      character(SCRIP_charLength), save :: 
      &             grid1_name, grid2_name  ! name for each grid
 
-      character (char_len), save :: 
+      character (SCRIP_charLength), save :: 
      &             grid1_units, ! units for grid coords (degs/radians)
      &             grid2_units  ! units for grid coords
 
-      real (kind=dbl_kind), parameter ::
+      real (SCRIP_r8), parameter ::
      &      deg2rad = pi/180.   ! conversion for deg to rads
 
 !-----------------------------------------------------------------------
@@ -77,11 +77,11 @@
 !
 !-----------------------------------------------------------------------
 
-      logical (kind=log_kind), dimension(:), allocatable, save ::
+      logical (SCRIP_logical), dimension(:), allocatable, save ::
      &             grid1_mask,        ! flag which cells participate
      &             grid2_mask         ! flag which cells participate
 
-      real (kind=dbl_kind), dimension(:), allocatable, save ::
+      real (SCRIP_r8), dimension(:), allocatable, save ::
      &             grid1_center_lat,  ! lat/lon coordinates for
      &             grid1_center_lon,  ! each grid center in radians
      &             grid2_center_lat, 
@@ -93,18 +93,18 @@
      &             grid1_frac,        ! fractional area of grid cells
      &             grid2_frac         ! participating in remapping
 
-      real (kind=dbl_kind), dimension(:,:), allocatable, save ::
+      real (SCRIP_r8), dimension(:,:), allocatable, save ::
      &             grid1_corner_lat,  ! lat/lon coordinates for
      &             grid1_corner_lon,  ! each grid corner in radians
      &             grid2_corner_lat, 
      &             grid2_corner_lon
 
-      logical (kind=log_kind), save ::
+      logical (SCRIP_logical), save ::
      &             luse_grid_centers ! use centers for bounding boxes
      &,            luse_grid1_area   ! use area from grid file
      &,            luse_grid2_area   ! use area from grid file
 
-      real (kind=dbl_kind), dimension(:,:), allocatable, save ::
+      real (SCRIP_r8), dimension(:,:), allocatable, save ::
      &             grid1_bound_box,  ! lat/lon bounding box for use
      &             grid2_bound_box   ! in restricting grid searches
 
@@ -114,17 +114,17 @@
 !
 !-----------------------------------------------------------------------
 
-      character (char_len), save ::
+      character (SCRIP_charLength), save ::
      &        restrict_type  ! type of bins to use
 
-      integer (kind=int_kind), save ::
+      integer (SCRIP_i4), save ::
      &        num_srch_bins  ! num of bins for restricted srch
 
-      integer (kind=int_kind), dimension(:,:), allocatable, save ::
+      integer (SCRIP_i4), dimension(:,:), allocatable, save ::
      &        bin_addr1, ! min,max adds for grid1 cells in this lat bin
      &        bin_addr2  ! min,max adds for grid2 cells in this lat bin
 
-      real(kind=dbl_kind), dimension(:,:), allocatable, save ::
+      real(SCRIP_r8), dimension(:,:), allocatable, save ::
      &        bin_lats   ! min,max latitude for each search bin
      &,       bin_lons   ! min,max longitude for each search bin
 
@@ -149,7 +149,7 @@
 !
 !-----------------------------------------------------------------------
 
-      character(char_len), intent(in) :: 
+      character(SCRIP_charLength), intent(in) :: 
      &             grid1_file, grid2_file  ! grid data files
 
 !-----------------------------------------------------------------------
@@ -158,7 +158,7 @@
 !
 !-----------------------------------------------------------------------
 
-      integer (kind=int_kind) :: 
+      integer (SCRIP_i4) :: 
      &  n      ! loop counter
      &, nele   ! element loop counter
      &, iunit  ! unit number for opening files
@@ -167,7 +167,7 @@
      &, n_add, e_add, ne_add
      &, nx, ny
 
-      integer (kind=int_kind) :: 
+      integer (SCRIP_i4) :: 
      &         ncstat,           ! netCDF status variable
      &         nc_grid1_id,       ! netCDF grid file id
      &         nc_grid2_id,       ! netCDF grid file id
@@ -192,13 +192,13 @@
      &         nc_grd1cntrlon_id, ! netCDF grid center lon var id
      &         nc_grd2cntrlon_id  ! netCDF grid center lon var id
 
-      integer (kind=int_kind), dimension(:), allocatable :: 
+      integer (SCRIP_i4), dimension(:), allocatable :: 
      &                            imask ! integer mask read from file
 
-      real (kind=dbl_kind) :: 
+      real (SCRIP_r8) :: 
      &  dlat,dlon           ! lat/lon intervals for search bins
 
-      real (kind=dbl_kind), dimension(4) ::
+      real (SCRIP_r8), dimension(4) ::
      &  tmp_lats, tmp_lons  ! temps for computing bounding boxes
 
 !-----------------------------------------------------------------------

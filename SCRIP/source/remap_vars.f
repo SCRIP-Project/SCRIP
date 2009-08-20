@@ -35,7 +35,7 @@
 
       module remap_vars
 
-      use kinds_mod
+      use SCRIP_KindsMod ! defines common data types
       use constants
       use grids
 
@@ -47,18 +47,18 @@
 !
 !-----------------------------------------------------------------------
 
-      integer (kind=int_kind), parameter ::
+      integer (SCRIP_i4), parameter ::
      &      norm_opt_none    = 1
      &,     norm_opt_dstarea = 2
      &,     norm_opt_frcarea = 3
 
-      integer (kind=int_kind), parameter ::
+      integer (SCRIP_i4), parameter ::
      &      map_type_conserv  = 1
      &,     map_type_bilinear = 2
      &,     map_type_bicubic  = 3
      &,     map_type_distwgt  = 4
 
-      integer (kind=int_kind), save :: 
+      integer (SCRIP_i4), save :: 
      &      max_links_map1  ! current size of link arrays
      &,     num_links_map1  ! actual number of links for remapping
      &,     max_links_map2  ! current size of link arrays
@@ -69,13 +69,13 @@
      &,     norm_opt        ! option for normalization (conserv only)
      &,     resize_increment ! default amount to increase array size
 
-      integer (kind=int_kind), dimension(:), allocatable, save ::
+      integer (SCRIP_i4), dimension(:), allocatable, save ::
      &      grid1_add_map1, ! grid1 address for each link in mapping 1
      &      grid2_add_map1, ! grid2 address for each link in mapping 1
      &      grid1_add_map2, ! grid1 address for each link in mapping 2
      &      grid2_add_map2  ! grid2 address for each link in mapping 2
 
-      real (kind=dbl_kind), dimension(:,:), allocatable, save ::
+      real (SCRIP_r8), dimension(:,:), allocatable, save ::
      &      wts_map1, ! map weights for each link (num_wts,max_links)
      &      wts_map2  ! map weights for each link (num_wts,max_links)
 
@@ -174,7 +174,7 @@
 !
 !-----------------------------------------------------------------------
 
-      integer (kind=int_kind), intent(in) ::
+      integer (SCRIP_i4), intent(in) ::
      &     nmap,      ! identifies which mapping array to resize
      &     increment  ! the number of links to add(subtract) to arrays
 
@@ -184,15 +184,15 @@
 !
 !-----------------------------------------------------------------------
 
-      integer (kind=int_kind) ::
+      integer (SCRIP_i4) ::
      &   ierr,     ! error flag
      &   mxlinks   ! size of link arrays
 
-      integer (kind=int_kind), dimension(:), allocatable ::
+      integer (SCRIP_i4), dimension(:), allocatable ::
      &   add1_tmp, ! temp array for resizing address arrays
      &   add2_tmp  ! temp array for resizing address arrays
 
-      real (kind=dbl_kind), dimension(:,:), allocatable ::
+      real (SCRIP_r8), dimension(:,:), allocatable ::
      &   wts_tmp   ! temp array for resizing weight arrays
 
 !-----------------------------------------------------------------------

@@ -41,7 +41,7 @@
 !
 !-----------------------------------------------------------------------
 
-      use kinds_mod     ! defines common data types
+      use SCRIP_KindsMod ! defines common data types
       use constants     ! defines useful constants
       use grids         ! includes all grid information
       use netcdf_mod    ! module with netcdf vars and utilities
@@ -60,7 +60,7 @@
 !
 !-----------------------------------------------------------------------
 
-      integer (kind=int_kind), private :: ! netCDF ids
+      integer (SCRIP_i4), private :: ! netCDF ids
      &         ncstat, nc_file_id,
      &         nc_srcgrdsize_id, nc_dstgrdsize_id,
      &         nc_srcgrdcorn_id, nc_dstgrdcorn_id,
@@ -97,7 +97,7 @@
 !
 !-----------------------------------------------------------------------
 
-      character(char_len), intent(in) ::
+      character(SCRIP_charLength), intent(in) ::
      &  interp_file        ! filename for remap data
 
 !-----------------------------------------------------------------------
@@ -106,7 +106,7 @@
 !
 !-----------------------------------------------------------------------
 
-      character(char_len), intent(out) ::
+      character(SCRIP_charLength), intent(out) ::
      &  map_name            ! name for mapping
 
 !-----------------------------------------------------------------------
@@ -115,7 +115,7 @@
 !
 !-----------------------------------------------------------------------
 
-      character(char_len) :: 
+      character(SCRIP_charLength) :: 
      &   map_method       ! character string for map_type
      &,  normalize_opt    ! character string for normalization option
      &,  convention       ! character string for output convention
@@ -226,14 +226,14 @@
 !
 !-----------------------------------------------------------------------
 
-      character (char_len) ::
+      character (SCRIP_charLength) ::
      &  grid1_name           ! grid name for source grid
      &, grid2_name           ! grid name for dest   grid
 
-      integer (kind=int_kind) ::  
+      integer (SCRIP_i4) ::  
      &  n                    ! dummy index
 
-      integer (kind=int_kind), dimension(:), allocatable ::
+      integer (SCRIP_i4), dimension(:), allocatable ::
      &  grid1_mask_int,      ! integer masks to determine
      &  grid2_mask_int       ! cells that participate in map
 
@@ -629,24 +629,24 @@
 !
 !-----------------------------------------------------------------------
 
-      character (char_len) ::
+      character (SCRIP_charLength) ::
      &  grid1_name           ! grid name for source grid
      &, grid2_name           ! grid name for dest   grid
 
-      integer (kind=int_kind) ::
+      integer (SCRIP_i4) ::
      &  nc_numwgts1_id    ! extra netCDF id for num_wgts > 1 
      &, nc_rmpmatrix2_id  ! extra netCDF id for high-order remap matrix
 
-      real (kind=dbl_kind), dimension(:),allocatable ::
+      real (SCRIP_r8), dimension(:),allocatable ::
      &  wts1              ! CSM wants single array for 1st-order wts
 
-      real (kind=dbl_kind), dimension(:,:),allocatable ::
+      real (SCRIP_r8), dimension(:,:),allocatable ::
      &  wts2              ! write remaining weights in different array
 
-      integer (kind=int_kind) ::  
+      integer (SCRIP_i4) ::  
      &  n                    ! dummy index
 
-      integer (kind=int_kind), dimension(:), allocatable ::
+      integer (SCRIP_i4), dimension(:), allocatable ::
      &  grid1_mask_int,      ! integer masks to determine
      &  grid2_mask_int       ! cells that participate in map
 

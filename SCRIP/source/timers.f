@@ -36,24 +36,24 @@
 
 !-----------------------------------------------------------------------
 
-      use kinds_mod
+      use SCRIP_KindsMod ! defines common data types
 
       implicit none
 
-      integer (kind=int_kind), parameter ::  
+      integer (SCRIP_i4), parameter ::  
      &     max_timers = 99  ! max number of timers allowed
 
-      integer (kind=int_kind), save :: 
+      integer (SCRIP_i4), save :: 
      &     cycles_max       ! max value of clock allowed by system
 
-      integer (kind=int_kind), dimension(max_timers), save :: 
+      integer (SCRIP_i4), dimension(max_timers), save :: 
      &     cycles1,         ! cycle number at start for each timer
      &     cycles2          ! cycle number at stop  for each timer
 
-      real (kind=real_kind), save ::  
+      real (SCRIP_r4), save ::  
      &     clock_rate       ! clock_rate in seconds for each cycle
 
-      real (kind=real_kind), dimension(max_timers), save ::  
+      real (SCRIP_r4), dimension(max_timers), save ::  
      &     cputime          ! accumulated cpu time in each timer
 
       character (len=8), dimension(max_timers), save ::  
@@ -81,7 +81,7 @@
 !
 !-----------------------------------------------------------------------
 
-      integer (kind=int_kind), intent(in) ::  
+      integer (SCRIP_i4), intent(in) ::  
      &    timer            ! timer number
 
 !-----------------------------------------------------------------------
@@ -111,12 +111,12 @@
 !
 !-----------------------------------------------------------------------
 
-      integer (kind=int_kind), intent(in) ::  
+      integer (SCRIP_i4), intent(in) ::  
      &    timer            ! timer number
 
 !-----------------------------------------------------------------------
 
-      cputime(timer) = 0.0_real_kind  ! clear the timer
+      cputime(timer) = 0.0_SCRIP_r4  ! clear the timer
 
 !-----------------------------------------------------------------------
 
@@ -140,7 +140,7 @@
 !
 !-----------------------------------------------------------------------
 
-      integer (kind=int_kind), intent(in) ::  
+      integer (SCRIP_i4), intent(in) ::  
      &    timer            ! timer number
 
 !-----------------------------------------------------------------------
@@ -149,7 +149,7 @@
 !
 !-----------------------------------------------------------------------
 
-      real (kind=real_kind) ::  
+      real (SCRIP_r4) ::  
      &     timer_get   ! accumulated cputime in given timer
 
 !-----------------------------------------------------------------------
@@ -182,7 +182,7 @@
 !
 !-----------------------------------------------------------------------
 
-      integer (kind=int_kind), intent(in) ::  
+      integer (SCRIP_i4), intent(in) ::  
      &    timer            ! timer number
 
 !-----------------------------------------------------------------------
@@ -222,7 +222,7 @@
 !
 !-----------------------------------------------------------------------
 
-      integer (kind=int_kind), intent(in) ::  
+      integer (SCRIP_i4), intent(in) ::  
      &    timer            ! timer number
 
 !-----------------------------------------------------------------------
@@ -256,7 +256,7 @@
 !
 !-----------------------------------------------------------------------
 
-      integer (kind=int_kind), intent(in) ::  
+      integer (SCRIP_i4), intent(in) ::  
      &    timer            ! timer number
 
 !-----------------------------------------------------------------------
@@ -304,7 +304,7 @@
 !
 !-----------------------------------------------------------------------
 
-      integer (kind=int_kind) :: cycles ! count rate return by sys_clock
+      integer (SCRIP_i4) :: cycles ! count rate return by sys_clock
 
 !-----------------------------------------------------------------------
 
@@ -312,10 +312,10 @@
       !--- Initialize timer arrays and clock_rate.
       !---
 
-      clock_rate = 0.0_real_kind
+      clock_rate = 0.0_SCRIP_r4
       cycles1    = 0
       cycles2    = 0
-      cputime    = 0.0_real_kind
+      cputime    = 0.0_SCRIP_r4
       status     = 'stopped'
 
       !---
@@ -326,9 +326,9 @@
       call system_clock(count_rate=cycles, count_max=cycles_max)
 
       if (cycles /= 0) then
-        clock_rate = 1.0_real_kind/real(cycles)
+        clock_rate = 1.0_SCRIP_r4/real(cycles)
       else
-        clock_rate = 0.0_real_kind
+        clock_rate = 0.0_SCRIP_r4
         print *, '--- No system clock available ---'
       endif
 

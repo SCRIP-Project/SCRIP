@@ -36,7 +36,7 @@
 
 !-----------------------------------------------------------------------
 
-      use kinds_mod     ! defines common data types
+      use SCRIP_KindsMod ! defines common data types
       use constants     ! defines common constants
       use grids         ! module containing grid info
       use remap_vars    ! module containing remap info
@@ -45,11 +45,11 @@
 
 !-----------------------------------------------------------------------
 
-      integer (kind=int_kind), parameter ::
+      integer (SCRIP_i4), parameter ::
      &    max_iter = 100   ! max iteration count for i,j iteration
 
-      real (kind=dbl_kind), parameter ::
-     &     converge = 1.e-10_dbl_kind  ! convergence criterion
+      real (SCRIP_r8), parameter ::
+     &     converge = 1.e-10_SCRIP_r8  ! convergence criterion
 
 !***********************************************************************
 
@@ -71,20 +71,20 @@
 !
 !-----------------------------------------------------------------------
 
-      integer (kind=int_kind) :: n,icount,
+      integer (SCRIP_i4) :: n,icount,
      &     dst_add,        ! destination address
      &     iter,           ! iteration counter
      &     nmap            ! index of current map being computed
 
-      integer (kind=int_kind), dimension(4) :: 
+      integer (SCRIP_i4), dimension(4) :: 
      &     src_add         ! address for the four source points
 
-      real (kind=dbl_kind), dimension(4)  ::
+      real (SCRIP_r8), dimension(4)  ::
      &     src_lats,       ! latitudes  of four bilinear corners
      &     src_lons,       ! longitudes of four bilinear corners
      &     wgts            ! bilinear weights for four corners
 
-      real (kind=dbl_kind) ::
+      real (SCRIP_r8) ::
      &     plat, plon,       ! lat/lon coords of destination point
      &     iguess, jguess,   ! current guess for bilinear coordinate
      &     thguess, phguess, ! current guess for lat/lon coordinate
@@ -442,10 +442,10 @@
 !
 !-----------------------------------------------------------------------
 
-      integer (kind=int_kind), dimension(4), intent(out) ::
+      integer (SCRIP_i4), dimension(4), intent(out) ::
      &        src_add  ! address of each corner point enclosing P
 
-      real (kind=dbl_kind), dimension(4), intent(out) ::
+      real (SCRIP_r8), dimension(4), intent(out) ::
      &        src_lats, ! latitudes  of the four corner points
      &        src_lons  ! longitudes of the four corner points
 
@@ -455,21 +455,21 @@
 !
 !-----------------------------------------------------------------------
 
-      real (kind=dbl_kind), intent(in) ::
+      real (SCRIP_r8), intent(in) ::
      &        plat,   ! latitude  of the search point
      &        plon    ! longitude of the search point
 
-      integer (kind=int_kind), dimension(2), intent(in) ::
+      integer (SCRIP_i4), dimension(2), intent(in) ::
      &        src_grid_dims  ! size of each src grid dimension
 
-      real (kind=dbl_kind), dimension(:), intent(in) ::
+      real (SCRIP_r8), dimension(:), intent(in) ::
      &        src_center_lat, ! latitude  of each src grid center 
      &        src_center_lon  ! longitude of each src grid center
 
-      real (kind=dbl_kind), dimension(:,:), intent(in) ::
+      real (SCRIP_r8), dimension(:,:), intent(in) ::
      &        src_grid_bound_box ! bound box for source grid
 
-      integer (kind=int_kind), dimension(:,:), intent(in) ::
+      integer (SCRIP_i4), dimension(:,:), intent(in) ::
      &        src_bin_add,    ! latitude bins for restricting
      &        dst_bin_add     ! searches
 
@@ -479,12 +479,12 @@
 !
 !-----------------------------------------------------------------------
 
-      integer (kind=int_kind) :: n, next_n, srch_add,   ! dummy indices
+      integer (SCRIP_i4) :: n, next_n, srch_add,   ! dummy indices
      &    nx, ny,            ! dimensions of src grid
      &    min_add, max_add,  ! addresses for restricting search
      &    i, j, jp1, ip1, n_add, e_add, ne_add  ! addresses
 
-      real (kind=dbl_kind) ::  ! vectors for cross-product check
+      real (SCRIP_r8) ::  ! vectors for cross-product check
      &      vec1_lat, vec1_lon,
      &      vec2_lat, vec2_lon, cross_product, cross_product_last,
      &      coslat_dst, sinlat_dst, coslon_dst, sinlon_dst,
@@ -712,14 +712,14 @@
 !
 !-----------------------------------------------------------------------
 
-      integer (kind=int_kind), intent(in) ::
+      integer (SCRIP_i4), intent(in) ::
      &        dst_add,  ! address on destination grid
      &        nmap      ! identifies which direction for mapping
 
-      integer (kind=int_kind), dimension(4), intent(in) ::
+      integer (SCRIP_i4), dimension(4), intent(in) ::
      &        src_add   ! addresses on source grid
 
-      real (kind=dbl_kind), dimension(4), intent(in) ::
+      real (SCRIP_r8), dimension(4), intent(in) ::
      &        weights ! array of remapping weights for these links
 
 !-----------------------------------------------------------------------
@@ -728,7 +728,7 @@
 !
 !-----------------------------------------------------------------------
 
-      integer (kind=int_kind) :: n, ! dummy index
+      integer (SCRIP_i4) :: n, ! dummy index
      &       num_links_old          ! placeholder for old link number
 
 !-----------------------------------------------------------------------

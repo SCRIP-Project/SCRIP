@@ -37,16 +37,16 @@
 
 !-----------------------------------------------------------------------
 
-      use kinds_mod   ! defines data types
+      use SCRIP_KindsMod   ! defines data types
 
       implicit none
 
 !-----------------------------------------------------------------------
 
-      logical (kind=log_kind), dimension(99), save ::
+      logical (SCRIP_logical), dimension(99), save ::
      &    unit_free   ! flags to determine whether unit is free for use
 
-      integer (kind=int_kind), parameter ::
+      integer (SCRIP_i4), parameter ::
      &    stdin  = 5, ! reserves unit for standard input
      &    stdout = 6, ! reserves unit for standard output
      &    stderr = 6  ! reserves unit for standard error
@@ -71,7 +71,7 @@
 !
 !-----------------------------------------------------------------------
 
-      integer (kind=int_kind), intent(out) ::
+      integer (SCRIP_i4), intent(out) ::
      &     iunit   ! next free I/O unit
 
 !-----------------------------------------------------------------------
@@ -80,9 +80,9 @@
 !
 !-----------------------------------------------------------------------
 
-      integer (kind=int_kind) :: n
+      integer (SCRIP_i4) :: n
 
-      logical (kind=log_kind), save :: first_call = .true.
+      logical (SCRIP_logical), save :: first_call = .true.
 
 !-----------------------------------------------------------------------
 !
@@ -131,7 +131,7 @@
 !
 !-----------------------------------------------------------------------
 
-      integer (kind=int_kind), intent(in) ::
+      integer (SCRIP_i4), intent(in) ::
      &     iunit   ! I/O unit to release
 
 !-----------------------------------------------------------------------
