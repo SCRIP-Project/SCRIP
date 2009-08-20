@@ -37,9 +37,9 @@
 
 !-----------------------------------------------------------------------
 
-      use SCRIP_KindsMod ! defines common data types
+      use SCRIP_KindsMod   ! defines common data types
+      use SCRIP_IOUnitsMod ! manages I/O units
       use constants    ! defines common constants
-      use iounits      ! I/O unit manager
       use netcdf_mod   ! netcdf I/O stuff
       use netcdf
       use grids        ! module containing grid info
@@ -151,10 +151,10 @@
 !
 !-----------------------------------------------------------------------
 
-      call get_unit(iunit)
+      call SCRIP_IOUnitsGet(iunit)
       open(iunit, file='repeat_test_in', status='old', form='formatted')
       read(iunit, nml=remap_inputs)
-      call release_unit(iunit)
+      call SCRIP_IOUnitsRelease(iunit)
       write(*,nml=remap_inputs)
 
 !-----------------------------------------------------------------------
