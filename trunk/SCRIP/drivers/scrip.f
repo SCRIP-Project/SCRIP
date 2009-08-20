@@ -37,8 +37,8 @@
 !-----------------------------------------------------------------------
 
       use SCRIP_KindsMod             ! module defining data types
+      use SCRIP_IOUnitsMod           ! manages I/O units
       use constants                  ! module for common constants
-      use iounits                    ! I/O unit manager
       use timers                     ! CPU timers
       use grids                      ! module with grid information
       use remap_vars                 ! common remapping variables
@@ -118,10 +118,10 @@
       restrict_type = 'latitude'
       num_srch_bins = 900
 
-      call get_unit(iunit)
+      call SCRIP_IOUnitsGet(iunit)
       open(iunit, file='scrip_in', status='old', form='formatted')
       read(iunit, nml=remap_inputs)
-      call release_unit(iunit)
+      call SCRIP_IOUnitsRelease(iunit)
 
       select case(map_method)
       case ('conservative')
@@ -159,8 +159,8 @@
 
       call grid_init(grid1_file, grid2_file)
 
-      write(stdout, *) ' Computing remappings between: ',grid1_name
-      write(stdout, *) '                          and  ',grid2_name
+      write(SCRIP_stdout, *) 'Computing remappings between: ',grid1_name
+      write(SCRIP_stdout, *) '                         and  ',grid2_name
 
 !-----------------------------------------------------------------------
 !

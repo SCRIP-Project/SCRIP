@@ -39,8 +39,8 @@
 !-----------------------------------------------------------------------
 
       use SCRIP_KindsMod    ! defines data types
+      use SCRIP_IOUnitsMod  ! manages I/O units
       use constants    ! common constants
-      use iounits      ! I/O unit manager
       use netcdf_mod   ! netCDF stuff
       use netcdf
 
@@ -161,7 +161,6 @@
       integer (SCRIP_i4) :: 
      &  n      ! loop counter
      &, nele   ! element loop counter
-     &, iunit  ! unit number for opening files
      &, i,j    ! logical 2d addresses
      &, ip1,jp1
      &, n_add, e_add, ne_add
@@ -736,7 +735,7 @@
       select case (restrict_type)
 
       case ('latitude')
-        write(stdout,*) 'Using latitude bins to restrict search.'
+        write(SCRIP_stdout,*) 'Using latitude bins to restrict search.'
 
         allocate(bin_addr1(2,num_srch_bins))
         allocate(bin_addr2(2,num_srch_bins))
@@ -777,7 +776,7 @@
         end do
 
       case ('latlon')
-        write(stdout,*) 'Using lat/lon boxes to restrict search.'
+        write(SCRIP_stdout,*) 'Using lat/lon boxes to restrict search.'
 
         dlat = pi /num_srch_bins
         dlon = pi2/num_srch_bins
