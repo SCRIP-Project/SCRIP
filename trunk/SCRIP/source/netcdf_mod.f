@@ -36,7 +36,7 @@
 
 !-----------------------------------------------------------------------
 
-      use kinds_mod
+      use SCRIP_KindsMod
       use constants
       use netcdf
 
@@ -58,7 +58,7 @@
 !
 !-----------------------------------------------------------------------
 
-      integer (kind=int_kind), intent(in) :: 
+      integer (SCRIP_i4), intent(in) :: 
      &    istat   ! integer status returned by netCDF function call
 
 !-----------------------------------------------------------------------

@@ -13,7 +13,7 @@ F90 = f95
 LD = f95
 CC = cc
 Cp = /bin/cp
-Cpp = /lib/cpp -P
+Cpp = /usr/bin/cpp -P
 AWK = /sw/bin/gawk
 ABI = 
 COMMDIR = serial
@@ -38,13 +38,8 @@ TRAP_FPE = no
 #  precompiler options
 #------------------------------------------------------------------
 
-#DCOUPL              = -Dcoupled
+Cpp_opts = 
 
-Cpp_opts =   \
-      $(DCOUPL)
-
-Cpp_opts := $(Cpp_opts) -DPOSIX
- 
 #----------------------------------------------------------------------------
 #
 #                           C Flags

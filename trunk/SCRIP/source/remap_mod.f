@@ -41,7 +41,7 @@
 !
 !-----------------------------------------------------------------------
 
-      use kinds_mod    ! defines common data types
+      use SCRIP_KindsMod ! defines common data types
       use constants    ! defines common constants
 
       implicit none
@@ -67,17 +67,17 @@
 !
 !-----------------------------------------------------------------------
 
-      integer (kind=int_kind), dimension(:), intent(in) ::
+      integer (SCRIP_i4), dimension(:), intent(in) ::
      &     dst_add,     ! destination address for each link
      &     src_add      ! source      address for each link
 
-      real (kind=dbl_kind), dimension(:,:), intent(in) ::
+      real (SCRIP_r8), dimension(:,:), intent(in) ::
      &     map_wts      ! remapping weights for each link
 
-      real (kind=dbl_kind), dimension(:), intent(in) ::
+      real (SCRIP_r8), dimension(:), intent(in) ::
      &     src_array    ! array with source field to be remapped
 
-      real (kind=dbl_kind), dimension(:), intent(in), optional ::
+      real (SCRIP_r8), dimension(:), intent(in), optional ::
      &     src_grad1    ! gradient arrays on source grid necessary for
      &,    src_grad2    ! higher-order remappings
      &,    src_grad3
@@ -88,7 +88,7 @@
 !
 !-----------------------------------------------------------------------
 
-      real (kind=dbl_kind), dimension(:), intent(inout) ::
+      real (SCRIP_r8), dimension(:), intent(inout) ::
      &     dst_array    ! array for remapped field on destination grid
 
 !-----------------------------------------------------------------------
@@ -97,7 +97,7 @@
 !
 !-----------------------------------------------------------------------
 
-      integer (kind=int_kind) :: n, iorder
+      integer (SCRIP_i4) :: n, iorder
 
 !-----------------------------------------------------------------------
 !

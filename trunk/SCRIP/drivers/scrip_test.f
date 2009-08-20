@@ -37,7 +37,7 @@
 
 !-----------------------------------------------------------------------
 
-      use kinds_mod    ! defines common data types
+      use SCRIP_KindsMod ! defines common data types
       use constants    ! defines common constants
       use iounits      ! I/O unit manager
       use netcdf_mod   ! netcdf I/O stuff
@@ -55,10 +55,10 @@
 !
 !-----------------------------------------------------------------------
 
-      integer (kind=int_kind) ::
+      integer (SCRIP_i4) ::
      &  field_choice   ! choice of field to be interpolated
 
-      character (char_len) :: 
+      character (SCRIP_charLength) :: 
      &  interp_file,   ! filename containing remap data (map1)
      &  output_file    ! filename for test results
 
@@ -70,10 +70,10 @@
 !
 !-----------------------------------------------------------------------
 
-      character (char_len) :: 
+      character (SCRIP_charLength) :: 
      &        map_name      ! name for mapping from grid1 to grid2
 
-      integer (kind=int_kind) ::    ! netCDF ids for files and arrays
+      integer (SCRIP_i4) ::    ! netCDF ids for files and arrays
      &        ncstat, nc_outfile_id, 
      &        nc_srcgrdcntrlat_id, nc_srcgrdcntrlon_id,
      &        nc_dstgrdcntrlat_id, nc_dstgrdcntrlon_id,
@@ -84,27 +84,27 @@
      &        nc_dstarray1_id, nc_dstarray1a_id, nc_dstarray2_id,
      &        nc_dsterror1_id, nc_dsterror1a_id, nc_dsterror2_id
 
-      integer (kind=int_kind), dimension(:), allocatable ::
+      integer (SCRIP_i4), dimension(:), allocatable ::
      &        nc_grid1size_id, nc_grid2size_id
 
 !-----------------------------------------------------------------------
 
-      character (char_len) :: 
+      character (SCRIP_charLength) :: 
      &          dim_name    ! netCDF dimension name
 
-      integer (kind=int_kind) :: i,j,n,imin,imax,idiff,
+      integer (SCRIP_i4) :: i,j,n,imin,imax,idiff,
      &    ip1,im1,jp1,jm1,nx,ny, ! for computing bicub gradients
      &    in,is,ie,iw,ine,inw,ise,isw,
      &    iunit                  ! unit number for namelist file
 
-      integer (kind=int_kind), dimension(:), allocatable ::
+      integer (SCRIP_i4), dimension(:), allocatable ::
      &    grid1_imask, grid2_imask, grid2_count
 
-      real (kind=dbl_kind) ::
+      real (SCRIP_r8) ::
      &    delew, delns,     ! variables for computing bicub gradients
      &    length            ! length scale for cosine hill test field
 
-      real (kind=dbl_kind), dimension(:), allocatable ::
+      real (SCRIP_r8), dimension(:), allocatable ::
      &    grid1_array, 
      &    grid1_tmp, 
      &    grad1_lat, 
@@ -116,10 +116,10 @@
      &    grid2_err,
      &    grid2_tmp
 
-      real (kind=int_kind), dimension(:,:), allocatable ::
+      real (SCRIP_i4), dimension(:,:), allocatable ::
      &    grid1itmp2d, grid2itmp2d
 
-      real (kind=dbl_kind), dimension(:,:), allocatable ::
+      real (SCRIP_r8), dimension(:,:), allocatable ::
      &    grid1tmp2d, grid2tmp2d
 
 !-----------------------------------------------------------------------

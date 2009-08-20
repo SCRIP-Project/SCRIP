@@ -37,7 +37,7 @@
 
 !-----------------------------------------------------------------------
 
-      use kinds_mod     ! defines common data types
+      use SCRIP_KindsMod ! defines common data types
       use constants     ! defines common scalar constants
       use grids         ! module containing grid information
       use remap_vars    ! module containing remap information
@@ -52,7 +52,7 @@
 !
 !-----------------------------------------------------------------------
 
-      character(char_len), private :: 
+      character(SCRIP_charLength), private :: 
      &   map_method       ! character string for map_type
      &,  normalize_opt    ! character string for normalization option
      &,  history          ! character string for history information
@@ -61,7 +61,7 @@
       character(8), private :: 
      &   cdate            ! character date string
 
-      integer (kind=int_kind), dimension(:), allocatable, private ::
+      integer (SCRIP_i4), dimension(:), allocatable, private ::
      &   src_mask_int     ! integer masks to determine
      &,  dst_mask_int     ! cells that participate in map
 
@@ -71,7 +71,7 @@
 !
 !-----------------------------------------------------------------------
 
-      integer (kind=int_kind), private ::
+      integer (SCRIP_i4), private ::
      &   ncstat               ! error flag for netCDF calls 
      &,  nc_file_id           ! id for netCDF file
      &,  nc_srcgrdsize_id     ! id for source grid size
@@ -102,7 +102,7 @@
      &,  nc_dstadd_id         ! id for map destination address
      &,  nc_rmpmatrix_id      ! id for remapping matrix
 
-      integer (kind=int_kind), dimension(2), private ::
+      integer (SCRIP_i4), dimension(2), private ::
      &   nc_dims2_id  ! netCDF ids for 2d array dims
 
 !***********************************************************************
@@ -126,7 +126,7 @@
 !
 !-----------------------------------------------------------------------
 
-      character(char_len), intent(in) ::
+      character(SCRIP_charLength), intent(in) ::
      &            map1_name,    ! name for mapping grid1 to grid2
      &            map2_name,    ! name for mapping grid2 to grid1
      &            interp_file1, ! filename for map1 remap data
@@ -234,11 +234,11 @@
 !
 !-----------------------------------------------------------------------
 
-      character(char_len), intent(in) ::
+      character(SCRIP_charLength), intent(in) ::
      &            map_name     ! name for mapping 
      &,           interp_file  ! filename for remap data
 
-      integer (kind=int_kind), intent(in) ::
+      integer (SCRIP_i4), intent(in) ::
      &  direction              ! direction of map (1=grid1 to grid2
                                !                   2=grid2 to grid1)
 
@@ -248,11 +248,11 @@
 !
 !-----------------------------------------------------------------------
 
-      character(char_len) ::
+      character(SCRIP_charLength) ::
      &  grid1_ctmp        ! character temp for grid1 names
      &, grid2_ctmp        ! character temp for grid2 names
 
-      integer (kind=int_kind) ::
+      integer (SCRIP_i4) ::
      &  itmp1             ! integer temp
      &, itmp2             ! integer temp
      &, itmp3             ! integer temp
@@ -833,11 +833,11 @@
 !
 !-----------------------------------------------------------------------
 
-      character(char_len), intent(in) ::
+      character(SCRIP_charLength), intent(in) ::
      &            map_name     ! name for mapping 
      &,           interp_file  ! filename for remap data
 
-      integer (kind=int_kind), intent(in) ::
+      integer (SCRIP_i4), intent(in) ::
      &  direction              ! direction of map (1=grid1 to grid2
                                !                   2=grid2 to grid1)
 
@@ -847,11 +847,11 @@
 !
 !-----------------------------------------------------------------------
 
-      character(char_len) ::
+      character(SCRIP_charLength) ::
      &  grid1_ctmp        ! character temp for grid1 names
      &, grid2_ctmp        ! character temp for grid2 names
 
-      integer (kind=int_kind) ::
+      integer (SCRIP_i4) ::
      &  itmp1             ! integer temp
      &, itmp2             ! integer temp
      &, itmp3             ! integer temp
@@ -863,10 +863,10 @@
      &, nc_dst_jsize_id   ! extra netCDF id for nj_b
      &, nc_rmpmatrix2_id  ! extra netCDF id for high-order remap matrix
 
-      real (kind=dbl_kind), dimension(:),allocatable ::
+      real (SCRIP_r8), dimension(:),allocatable ::
      &  wts1              ! CSM wants single array for 1st-order wts
 
-      real (kind=dbl_kind), dimension(:,:),allocatable ::
+      real (SCRIP_r8), dimension(:,:),allocatable ::
      &  wts2              ! write remaining weights in different array
 
 !-----------------------------------------------------------------------
@@ -1525,9 +1525,6 @@
 !
 !-----------------------------------------------------------------------
 
-      use kinds_mod     ! defines common data types
-      use constants     ! defines common scalar constants
-
       implicit none
 
 !-----------------------------------------------------------------------
@@ -1536,11 +1533,11 @@
 !
 !-----------------------------------------------------------------------
 
-      integer (kind=int_kind), intent(inout), dimension(:) ::
+      integer (SCRIP_i4), intent(inout), dimension(:) ::
      &        add1,       ! destination address array (num_links)
      &        add2        ! source      address array
 
-      real (kind=dbl_kind), intent(inout), dimension(:,:) ::
+      real (SCRIP_r8), intent(inout), dimension(:,:) ::
      &        weights     ! remapping weights (num_wts, num_links)
 
 !-----------------------------------------------------------------------
@@ -1549,7 +1546,7 @@
 !
 !-----------------------------------------------------------------------
 
-      integer (kind=int_kind) ::
+      integer (SCRIP_i4) ::
      &          num_links,          ! num of links for this mapping
      &          num_wts,            ! num of weights for this mapping
      &          add1_tmp, add2_tmp, ! temp for addresses during swap
@@ -1557,7 +1554,7 @@
      &          lvl, final_lvl,     ! level indexes for heap sort levels
      &          chk_lvl1, chk_lvl2, max_lvl
 
-      real (kind=dbl_kind), dimension(SIZE(weights,DIM=1)) ::
+      real (SCRIP_r8), dimension(SIZE(weights,DIM=1)) ::
      &          wgttmp              ! temp for holding wts during swap
 
 !-----------------------------------------------------------------------

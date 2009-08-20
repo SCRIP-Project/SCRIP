@@ -35,7 +35,7 @@
 
 !-----------------------------------------------------------------------
 
-      use kinds_mod  ! defines common data types
+      use SCRIP_KindsMod  ! defines common data types
 
       implicit none
 
@@ -43,18 +43,18 @@
 
 !-----------------------------------------------------------------------
 
-      real (kind = dbl_kind), parameter :: 
-     &                        zero   = 0.0_dbl_kind,
-     &                        one    = 1.0_dbl_kind,
-     &                        two    = 2.0_dbl_kind,
-     &                        three  = 3.0_dbl_kind,
-     &                        four   = 4.0_dbl_kind,
-     &                        five   = 5.0_dbl_kind,
-     &                        half   = 0.5_dbl_kind,
-     &                        quart  = 0.25_dbl_kind,
-     &                        bignum = 1.e+20_dbl_kind,
-     &                        tiny   = 1.e-14_dbl_kind,
-     &                        pi     = 3.14159265359_dbl_kind,
+      real (kind = SCRIP_r8), parameter :: 
+     &                        zero   = 0.0_SCRIP_r8,
+     &                        one    = 1.0_SCRIP_r8,
+     &                        two    = 2.0_SCRIP_r8,
+     &                        three  = 3.0_SCRIP_r8,
+     &                        four   = 4.0_SCRIP_r8,
+     &                        five   = 5.0_SCRIP_r8,
+     &                        half   = 0.5_SCRIP_r8,
+     &                        quart  = 0.25_SCRIP_r8,
+     &                        bignum = 1.e+20_SCRIP_r8,
+     &                        tiny   = 1.e-14_SCRIP_r8,
+     &                        pi     = 3.14159265359_SCRIP_r8,
      &                        pi2    = two*pi,
      &                        pih    = half*pi
 

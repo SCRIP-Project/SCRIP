@@ -40,7 +40,7 @@
 
 !-----------------------------------------------------------------------
 
-      use kinds_mod    ! defines common data types
+      use SCRIP_KindsMod ! defines common data types
       use constants    ! defines common constants
       use timers       ! module for timing
       use grids        ! module containing grid information
@@ -54,17 +54,17 @@
 !
 !-----------------------------------------------------------------------
 
-      integer (kind=int_kind), save :: 
+      integer (SCRIP_i4), save :: 
      &        num_srch_cells ! num cells in restricted search arrays
 
-      integer (kind=int_kind), dimension(:), allocatable, save :: 
+      integer (SCRIP_i4), dimension(:), allocatable, save :: 
      &        srch_add       ! global address of cells in srch arrays
 
-      real (kind=dbl_kind), parameter :: 
-     &     north_thresh = 1.45_dbl_kind, ! threshold for coord transf.
-     &     south_thresh =-2.00_dbl_kind  ! threshold for coord transf.
+      real (SCRIP_r8), parameter :: 
+     &     north_thresh = 1.45_SCRIP_r8, ! threshold for coord transf.
+     &     south_thresh =-2.00_SCRIP_r8  ! threshold for coord transf.
 
-      real (kind=dbl_kind), dimension(:,:), allocatable, save ::
+      real (SCRIP_r8), dimension(:,:), allocatable, save ::
      &     srch_corner_lat,  ! lat of each corner of srch cells
      &     srch_corner_lon   ! lon of each corner of srch cells
 
@@ -90,11 +90,11 @@
 !
 !-----------------------------------------------------------------------
 
-      integer (kind=int_kind), parameter :: 
+      integer (SCRIP_i4), parameter :: 
      &        max_subseg = 10000 ! max number of subsegments per segment
                                  ! to prevent infinite loop
 
-      integer (kind=int_kind) :: 
+      integer (SCRIP_i4) :: 
      &        grid1_add,  ! current linear address for grid1 cell
      &        grid2_add,  ! current linear address for grid2 cell
      &        min_add,    ! addresses for restricting search of
@@ -104,27 +104,27 @@
      &        next_corn,  ! corner of cell that segment ends on
      &        num_subseg  ! number of subsegments 
 
-      logical (kind=log_kind) :: 
+      logical (SCRIP_logical) :: 
      &        lcoinc,  ! flag for coincident segments
      &        lrevers, ! flag for reversing direction of segment
      &        lbegin   ! flag for first integration of a segment
 
-      logical (kind=log_kind), dimension(:), allocatable ::
+      logical (SCRIP_logical), dimension(:), allocatable ::
      &        srch_mask   ! mask for restricting searches
 
-      real (kind=dbl_kind) ::
+      real (SCRIP_r8) ::
      &     intrsct_lat, intrsct_lon,       ! lat/lon of next intersect
      &     beglat, endlat, beglon, endlon, ! endpoints of current seg.
      &     norm_factor                     ! factor for normalizing wts
 
-      real (kind=dbl_kind), dimension(:), allocatable ::
+      real (SCRIP_r8), dimension(:), allocatable ::
      &       grid2_centroid_lat, grid2_centroid_lon, ! centroid coords
      &       grid1_centroid_lat, grid1_centroid_lon  ! on each grid
 
-      real (kind=dbl_kind), dimension(2) :: begseg ! begin lat/lon for
+      real (SCRIP_r8), dimension(2) :: begseg ! begin lat/lon for
                                                    ! full segment
 
-      real (kind=dbl_kind), dimension(6) :: weights ! local wgt array
+      real (SCRIP_r8), dimension(6) :: weights ! local wgt array
 
 !-----------------------------------------------------------------------
 !
@@ -935,15 +935,15 @@
 !
 !-----------------------------------------------------------------------
 
-      logical (kind=log_kind), intent(in) ::
+      logical (SCRIP_logical), intent(in) ::
      &     lbegin, ! flag for first integration along this segment
      &     lrevers ! flag whether segment integrated in reverse
 
-      real (kind=dbl_kind), intent(in) :: 
+      real (SCRIP_r8), intent(in) :: 
      &     beglat, beglon,  ! beginning lat/lon endpoints for segment
      &     endlat, endlon   ! ending    lat/lon endpoints for segment
 
-      real (kind=dbl_kind), dimension(2), intent(inout) :: 
+      real (SCRIP_r8), dimension(2), intent(inout) :: 
      &     begseg ! begin lat/lon of full segment
 
 !-----------------------------------------------------------------------
@@ -952,15 +952,15 @@
 !
 !-----------------------------------------------------------------------
 
-      integer (kind=int_kind), intent(out) ::
+      integer (SCRIP_i4), intent(out) ::
      &        location  ! address in destination array containing this
                         ! segment
 
-      logical (kind=log_kind), intent(out) ::
+      logical (SCRIP_logical), intent(out) ::
      &        lcoinc    ! flag segments which are entirely coincident
                         ! with a grid line
 
-      real (kind=dbl_kind), intent(out) ::
+      real (SCRIP_r8), intent(out) ::
      &     intrsct_lat, intrsct_lon ! lat/lon coords of next intersect.
 
 !-----------------------------------------------------------------------
@@ -969,18 +969,18 @@
 !
 !-----------------------------------------------------------------------
 
-      integer (kind=int_kind) :: n, next_n, cell, srch_corners, pole_loc
+      integer (SCRIP_i4) :: n, next_n, cell, srch_corners, pole_loc
 
-      integer (kind=int_kind), save :: 
+      integer (SCRIP_i4), save :: 
      &     last_loc  ! save location when crossing threshold
 
-      logical (kind=log_kind) :: 
+      logical (SCRIP_logical) :: 
      &     loutside  ! flags points outside grid
 
-      logical (kind=log_kind), save :: 
+      logical (SCRIP_logical), save :: 
      &     lthresh = .false.  ! flags segments crossing threshold bndy
 
-      real (kind=dbl_kind) ::
+      real (SCRIP_r8) ::
      &     lon1, lon2,       ! local longitude variables for segment
      &     lat1, lat2,       ! local latitude  variables for segment
      &     grdlon1, grdlon2, ! local longitude variables for grid cell
@@ -992,7 +992,7 @@
      &     s1, s2, determ,     ! variables used for linear solve to
      &     mat1, mat2, mat3, mat4, rhs1, rhs2  ! find intersection
 
-      real (kind=dbl_kind), save ::
+      real (SCRIP_r8), save ::
      &     intrsct_lat_off, intrsct_lon_off ! lat/lon coords offset 
                                             ! for next search
 
@@ -1200,7 +1200,7 @@
         !***
 
         loutside = .true.
-        s1 = s1 + 0.001_dbl_kind
+        s1 = s1 + 0.001_SCRIP_r8
         lat1 = beglat + s1*(endlat - beglat)
         lon1 = beglon + s1*(lon2   - beglon)
 
@@ -1403,14 +1403,14 @@
 !
 !-----------------------------------------------------------------------
 
-      real (kind=dbl_kind), intent(in) :: 
+      real (SCRIP_r8), intent(in) :: 
      &     beglat, beglon,  ! beginning lat/lon endpoints for segment
      &     endlat, endlon   ! ending    lat/lon endpoints for segment
 
-      real (kind=dbl_kind), dimension(2), intent(inout) :: 
+      real (SCRIP_r8), dimension(2), intent(inout) :: 
      &     begseg ! begin lat/lon of full segment
 
-      logical (kind=log_kind), intent(in) ::
+      logical (SCRIP_logical), intent(in) ::
      &        lrevers   ! flag true if segment integrated in reverse
 
 !-----------------------------------------------------------------------
@@ -1419,18 +1419,18 @@
 !
 !-----------------------------------------------------------------------
 
-      integer (kind=int_kind), intent(inout) ::
+      integer (SCRIP_i4), intent(inout) ::
      &        location  ! address in destination array containing this
                         ! segment -- also may contain last location on
                         ! entry
 
-      logical (kind=log_kind), intent(out) ::
+      logical (SCRIP_logical), intent(out) ::
      &        lcoinc    ! flag segment coincident with grid line
 
-      logical (kind=log_kind), intent(inout) ::
+      logical (SCRIP_logical), intent(inout) ::
      &        lthresh   ! flag segment crossing threshold boundary
 
-      real (kind=dbl_kind), intent(out) ::
+      real (SCRIP_r8), intent(out) ::
      &     intrsct_lat, intrsct_lon ! lat/lon coords of next intersect.
 
 !-----------------------------------------------------------------------
@@ -1439,11 +1439,11 @@
 !
 !-----------------------------------------------------------------------
 
-      integer (kind=int_kind) :: n, next_n, cell, srch_corners, pole_loc
+      integer (SCRIP_i4) :: n, next_n, cell, srch_corners, pole_loc
 
-      logical (kind=log_kind) :: loutside ! flags points outside grid
+      logical (SCRIP_logical) :: loutside ! flags points outside grid
 
-      real (kind=dbl_kind) :: pi4, rns, ! north/south conversion
+      real (SCRIP_r8) :: pi4, rns, ! north/south conversion
      &     x1, x2,       ! local x variables for segment
      &     y1, y2,       ! local y variables for segment
      &     begx, begy,   ! beginning x,y variables for segment
@@ -1457,7 +1457,7 @@
      &     s1, s2, determ,     ! variables used for linear solve to
      &     mat1, mat2, mat3, mat4, rhs1, rhs2  ! find intersection
 
-      real (kind=dbl_kind), dimension(:,:), allocatable ::
+      real (SCRIP_r8), dimension(:,:), allocatable ::
      &     srch_corner_x,  ! x of each corner of srch cells
      &     srch_corner_y   ! y of each corner of srch cells
 
@@ -1466,19 +1466,19 @@
       !*** transformation
       !***
 
-      logical (kind=log_kind), save :: luse_last = .false.
+      logical (SCRIP_logical), save :: luse_last = .false.
 
-      real (kind=dbl_kind), save :: 
+      real (SCRIP_r8), save :: 
      &     intrsct_x, intrsct_y  ! x,y for intersection
 
       !***
       !*** variables necessary if segment manages to hit pole
       !***
 
-      integer (kind=int_kind), save :: 
+      integer (SCRIP_i4), save :: 
      &     avoid_pole_count = 0  ! count attempts to avoid pole
 
-      real (kind=dbl_kind), save :: 
+      real (SCRIP_r8), save :: 
      &     avoid_pole_offset = tiny  ! endpoint offset to avoid pole
 
 !-----------------------------------------------------------------------
@@ -1673,7 +1673,7 @@
         !***
 
         loutside = .true.
-        s1 = s1 + 0.001_dbl_kind
+        s1 = s1 + 0.001_SCRIP_r8
         x1 = begx + s1*(x2 - begx)
         y1 = begy + s1*(y2 - begy)
 
@@ -1932,10 +1932,10 @@
 !
 !-----------------------------------------------------------------------
 
-      integer (kind=int_kind), intent(in) ::
+      integer (SCRIP_i4), intent(in) ::
      &        num_wts  ! number of weights to compute
 
-      real (kind=dbl_kind), intent(in) :: 
+      real (SCRIP_r8), intent(in) :: 
      &     in_phi1, in_phi2,     ! longitude endpoints for the segment
      &     theta1, theta2,       ! latitude  endpoints for the segment
      &     grid1_lat, grid1_lon, ! reference coordinates for each
@@ -1947,7 +1947,7 @@
 !
 !-----------------------------------------------------------------------
 
-      real (kind=dbl_kind), dimension(2*num_wts), intent(out) ::
+      real (SCRIP_r8), dimension(2*num_wts), intent(out) ::
      &     weights   ! line integral contribution to weights
 
 !-----------------------------------------------------------------------
@@ -1956,9 +1956,9 @@
 !
 !-----------------------------------------------------------------------
 
-      real (kind=dbl_kind) :: dphi, sinth1, sinth2, costh1, costh2, fac,
+      real (SCRIP_r8) :: dphi, sinth1, sinth2, costh1, costh2, fac,
      &                        phi1, phi2, phidiff1, phidiff2, sinint
-      real (kind=dbl_kind) :: f1, f2, fint
+      real (SCRIP_r8) :: f1, f2, fint
 
 !-----------------------------------------------------------------------
 !
@@ -2082,11 +2082,11 @@
 !
 !-----------------------------------------------------------------------
 
-      integer (kind=int_kind), intent(in) ::
+      integer (SCRIP_i4), intent(in) ::
      &        add1,  ! address on grid1
      &        add2   ! address on grid2
 
-      real (kind=dbl_kind), dimension(:), intent(in) ::
+      real (SCRIP_r8), dimension(:), intent(in) ::
      &        weights ! array of remapping weights for this link
 
 !-----------------------------------------------------------------------
@@ -2095,13 +2095,13 @@
 !
 !-----------------------------------------------------------------------
 
-      integer (kind=int_kind) :: nlink, min_link, max_link ! link index
+      integer (SCRIP_i4) :: nlink, min_link, max_link ! link index
 
-      integer (kind=int_kind), dimension(:,:), allocatable, save ::
+      integer (SCRIP_i4), dimension(:,:), allocatable, save ::
      &        link_add1,  ! min,max link add to restrict search
      &        link_add2   ! min,max link add to restrict search
 
-      logical (kind=log_kind), save :: first_call = .true.
+      logical (SCRIP_logical), save :: first_call = .true.
 
 !-----------------------------------------------------------------------
 !

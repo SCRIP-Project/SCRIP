@@ -37,7 +37,7 @@
 
 !-----------------------------------------------------------------------
 
-      use kinds_mod     ! defines common data types
+      use SCRIP_KindsMod ! defines common data types
       use constants     ! defines common constants
       use grids         ! module containing grid info
       use remap_vars    ! module containing remap info
@@ -50,10 +50,10 @@
 !
 !-----------------------------------------------------------------------
 
-      integer (kind=int_kind), parameter :: 
+      integer (SCRIP_i4), parameter :: 
      &     num_neighbors=4  ! num nearest neighbors to interpolate from
 
-      real (kind=dbl_kind), dimension(:), allocatable, save ::
+      real (SCRIP_r8), dimension(:), allocatable, save ::
      &     coslat, sinlat, ! cosine, sine of grid lats (for distance)
      &     coslon, sinlon, ! cosine, sine of grid lons (for distance)
      &     wgtstmp         ! an array to hold the link weight
@@ -79,20 +79,20 @@
 !
 !-----------------------------------------------------------------------
 
-      logical (kind=log_kind), dimension(num_neighbors) ::
+      logical (SCRIP_logical), dimension(num_neighbors) ::
      &     nbr_mask        ! mask at nearest neighbors
 
-      integer (kind=int_kind) :: n,
+      integer (SCRIP_i4) :: n,
      &     dst_add,        ! destination address
      &     nmap            ! index of current map being computed
 
-      integer (kind=int_kind), dimension(num_neighbors) ::
+      integer (SCRIP_i4), dimension(num_neighbors) ::
      &     nbr_add         ! source address at nearest neighbors
 
-      real (kind=dbl_kind), dimension(num_neighbors) ::
+      real (SCRIP_r8), dimension(num_neighbors) ::
      &     nbr_dist        ! angular distance four nearest neighbors
 
-      real (kind=dbl_kind) ::
+      real (SCRIP_r8) ::
      &     coslat_dst,     ! cos(lat) of destination grid point
      &     coslon_dst,     ! cos(lon) of destination grid point
      &     sinlat_dst,     ! sin(lat) of destination grid point
@@ -290,10 +290,10 @@
 !
 !-----------------------------------------------------------------------
 
-      integer (kind=int_kind), dimension(num_neighbors), intent(out) ::
+      integer (SCRIP_i4), dimension(num_neighbors), intent(out) ::
      &        nbr_add  ! address of each of the closest points
 
-      real (kind=dbl_kind), dimension(num_neighbors), intent(out) ::
+      real (SCRIP_r8), dimension(num_neighbors), intent(out) ::
      &        nbr_dist ! distance to each of the closest points
 
 !-----------------------------------------------------------------------
@@ -302,11 +302,11 @@
 !
 !-----------------------------------------------------------------------
 
-      integer (kind=int_kind), dimension(:,:), intent(in) ::
+      integer (SCRIP_i4), dimension(:,:), intent(in) ::
      &        src_bin_add, ! search bins for restricting search
      &        dst_bin_add   
 
-      real (kind=dbl_kind), intent(in) ::
+      real (SCRIP_r8), intent(in) ::
      &        plat,         ! latitude  of the search point
      &        plon,         ! longitude of the search point
      &        coslat_dst,   ! cos(lat)  of the search point
@@ -320,10 +320,10 @@
 !
 !-----------------------------------------------------------------------
 
-      integer (kind=int_kind) :: n, nmax, nadd, nchk, ! dummy indices
+      integer (SCRIP_i4) :: n, nmax, nadd, nchk, ! dummy indices
      &        min_add, max_add, nm1, np1, i, j, ip1, im1, jp1, jm1
 
-      real (kind=dbl_kind) ::
+      real (SCRIP_r8) ::
      &        distance      ! angular distance
 
 !-----------------------------------------------------------------------
@@ -446,12 +446,12 @@
 !
 !-----------------------------------------------------------------------
 
-      integer (kind=int_kind), intent(in) ::
+      integer (SCRIP_i4), intent(in) ::
      &        add1,  ! address on grid1
      &        add2,  ! address on grid2
      &        nmap   ! identifies which direction for mapping
 
-      real (kind=dbl_kind), dimension(:), intent(in) ::
+      real (SCRIP_r8), dimension(:), intent(in) ::
      &        weights ! array of remapping weights for this link
 
 !-----------------------------------------------------------------------
