@@ -37,7 +37,10 @@
 !-----------------------------------------------------------------------
 
       use SCRIP_KindsMod             ! module defining data types
+      use SCRIP_CommMod              ! for initializing comm environment
+      use SCRIP_ErrorMod             ! SCRIP error checking and logging
       use SCRIP_IOUnitsMod           ! manages I/O units
+      use SCRIP_InitMod              ! SCRIP initialization
       use constants                  ! module for common constants
       use timers                     ! CPU timers
       use grids                      ! module with grid information
@@ -55,6 +58,9 @@
 !     input namelist variables
 !
 !-----------------------------------------------------------------------
+
+      integer (SCRIP_i4) :: 
+     &   errorCode
 
       character (SCRIP_charLength) :: 
      &           grid1_file,   ! filename of grid file containing grid1
@@ -85,6 +91,22 @@
 
       integer (SCRIP_i4) :: n,     ! dummy counter
      &                           iunit  ! unit number for namelist file
+
+!-----------------------------------------------------------------------
+!
+!     initialize communication environment and SCRIP package
+!
+!-----------------------------------------------------------------------
+
+      errorCode = SCRIP_Success
+
+      call SCRIP_CommInitMessageEnvironment
+      call SCRIP_Initialize(errorCode)
+      if (SCRIP_errorCheck(errorCode,'error initializing SCRIP')) then
+         call SCRIP_errorPrint(errorCode, SCRIP_masterTask)
+         call SCRIP_CommExitMessageEnvironment
+         stop
+      endif
 
 !-----------------------------------------------------------------------
 !

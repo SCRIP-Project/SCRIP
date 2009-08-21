@@ -38,7 +38,10 @@
 !-----------------------------------------------------------------------
 
       use SCRIP_KindsMod   ! defines common data types
+      use SCRIP_CommMod    ! SCRIP communication environment
+      use SCRIP_ErrorMod   ! SCRIP error logging and checking
       use SCRIP_IOUnitsMod ! manages I/O units
+      use SCRIP_InitMod    ! SCRIP initialization
       use constants    ! defines common constants
       use netcdf_mod   ! netcdf I/O stuff
       use netcdf
@@ -101,6 +104,9 @@
 !
 !-----------------------------------------------------------------------
 
+      integer (SCRIP_i4) :: 
+     &   errorCode
+
       character (SCRIP_charLength) :: 
      &           map_name1,    ! name for mapping from grid1 to grid2
      &           map_name2     ! name for mapping from grid2 to grid1
@@ -144,6 +150,21 @@
      &    grid2_tmp,
      &    grad2_lat, 
      &    grad2_lon  
+
+!-----------------------------------------------------------------------
+!
+!     initialize SCRIP
+!
+!-----------------------------------------------------------------------
+
+      errorCode = SCRIP_Success
+      call SCRIP_CommInitMessageEnvironment
+      call SCRIP_Initialize(errorCode)
+      if (SCRIP_errorCheck(errorCode,'error initializing SCRIP')) then
+         call SCRIP_ErrorPrint(errorCode, SCRIP_masterTask)
+         call SCRIP_CommExitMessageEnvironment
+         stop
+      endif
 
 !-----------------------------------------------------------------------
 !

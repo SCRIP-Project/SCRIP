@@ -42,7 +42,7 @@ endif
 
 SRCDIRS = $(SCRIPEXEDIR)/
 SRCDIRS := $(SRCDIRS) $(SCRIPDIR)/source/
-SRCDIRS := $(SRCDIRS) $(SCRIPDIR)/$(COMMDIR)/
+SRCDIRS := $(SRCDIRS) $(SCRIPDIR)/source/$(COMMDIR)/
 
 #----------------------------------------------------------------------------
 #
