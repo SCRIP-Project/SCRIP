@@ -1,14 +1,14 @@
-&remap_inputs
+&remapInputs
     num_maps = 2
-    grid1_file = '../grids/remap_grid_POP43.nc'
-    grid2_file = '../grids/remap_grid_T42.nc'
-    interp_file1 = 'rmp_POP43_to_T42_conserv.nc'
-    interp_file2 = 'rmp_T42_to_POP43_conserv.nc'
-    map1_name = 'POP43 to T42 Conservative Mapping'
-    map2_name = 'T42 to POP43 Conservative Mapping'
-    map_method = 'conservative'
-    normalize_opt = 'frac'
-    output_opt = 'scrip'
+    gridFile1 = '../grids/remap_grid_POP43.nc'
+    gridFile2 = '../grids/remap_grid_T42.nc'
+    interpFile1 = 'rmp_POP43_to_T42_conserv.nc'
+    interpFile2 = 'rmp_T42_to_POP43_conserv.nc'
+    mapName1 = 'POP43 to T42 Conservative Mapping'
+    mapName2 = 'T42 to POP43 Conservative Mapping'
+    mapMethod = 'conservative'
+    normalizeOpt = 'fracArea'
+    outputFormat = 'scrip'
     restrict_type = 'latitude'
     num_srch_bins = 90 
     luse_grid1_area = .false.

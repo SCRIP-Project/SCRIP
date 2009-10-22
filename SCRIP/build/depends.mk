@@ -103,11 +103,11 @@ depends: $(DEPFILES)
 #
 #----------------------------------------------------------------------------
  
-$(DepDir)/%$(DEPSUF): %.f90
+$(DepDir)/%$(DEPSUF): $(SRCDIRS)%.f90
 	@echo '$(SCRIPARCH) Making depends for compiling' $<
 	@$(AWK) -f $(SCRIPDIR)/build/fdepends.awk -v NAME=$(basename $<) -v SUF=$(suffix $<) -v COMPDIR=$(SCRIPEXEDIR)/compile $< > $(DepDir)/$(@F)
 
-$(DepDir)/%$(DEPSUF): %.f
+$(DepDir)/%$(DEPSUF): $(SRCDIRS)%.f
 	@echo '$(SCRIPARCH) Making depends for compiling' $<
 	@$(AWK) -f $(SCRIPDIR)/build/fdepends.awk -v NAME=$(basename $<) -v SUF=$(suffix $<) -v COMPDIR=$(SCRIPEXEDIR)/compile $< > $(DepDir)/$(@F)
 
@@ -119,7 +119,7 @@ $(DepDir)/%$(DEPSUF): %.f
 # gets complicated enough to warrant it, the file "cdepends.awk" 
 # will need to test for includes delimited by quotes.
 
-$(DepDir)/%$(DEPSUF): %.c
+$(DepDir)/%$(DEPSUF): $(SRCDIRS)%.c
 	@echo '$(SCRIPARCH) Making depends for compiling' $<
 	@echo '$(*).o $(DepDir)/$(*)$(DEPSUF): $(basename $<)$(suffix $<)' > $(DepDir)/$(@F)
 

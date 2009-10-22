@@ -94,7 +94,7 @@ cp $SCRIPDIR/scrip_in $workdir
 cp $SCRIPDIR/scrip_test_in $workdir/test
 cp $SCRIPDIR/scrip_test_in $workdir/testRepeat
 
-cp $SCRIPDIR/drivers/scrip.f $workdir
+cp $SCRIPDIR/drivers/SCRIP_driver.F90 $workdir
 cp $SCRIPDIR/drivers/scrip_test.f $workdir/test
 cp $SCRIPDIR/drivers/scrip_test_repeat.f $workdir/testRepeat
 

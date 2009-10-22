@@ -817,7 +817,8 @@
      &                          src_grad3=grad1_latlon)
       endif
 
-      if (map_type == map_type_conserv) then
+      if (map_type == map_type_conserv .or. 
+     &    map_type == map_type_particle) then
         select case (norm_opt)
         case (norm_opt_none)
           grid2_err = grid2_frac*grid2_area
