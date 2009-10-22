@@ -150,8 +150,14 @@
 
       allocate(srch_mask(grid2_size))
 
-      print *,'grid1 sweep '
-      do grid1_add = 1,grid1_size
+      print *,'grid1 sweep'
+      !do grid1_add = 1,grid1_size
+      do grid1_add = 343,343
+         print *,grid1_add
+         do n=1,4
+          print *,grid1_corner_lon(n,grid1_add), 
+     &            grid1_corner_lat(n,grid1_add)
+         end do
 
         !***
         !*** restrict searches first using search bins
@@ -236,6 +242,9 @@
             endlon = grid1_corner_lon(corner,grid1_add)
             lrevers = .true.
           endif
+          print *,'corner',corner
+          print *,beglon,beglat
+          print *,endlon,endlat
 
           begseg(1) = beglat
           begseg(2) = beglon
@@ -277,6 +286,15 @@
      &                        lbegin, lrevers)
             call timer_stop(2)
             lbegin = .false.
+            print *,grid2_add,intrsct_lon,intrsct_lat
+            if (grid2_add /= 0) then
+              do n=1,4
+                print *,grid2_corner_lon(n,grid2_add),
+     &                  grid2_corner_lat(n,grid2_add)
+              end do
+            !else
+            !  stop
+            endif
 
             !***
             !*** compute line integral for this subsegment.
@@ -377,7 +395,8 @@
       allocate(srch_mask(grid1_size))
 
       print *,'grid2 sweep '
-      do grid2_add = 1,grid2_size
+      !do grid2_add = 1,grid2_size
+      do grid2_add = grid2_size,1
 
         !***
         !*** restrict searches first using search bins
@@ -969,7 +988,7 @@
 !
 !-----------------------------------------------------------------------
 
-      integer (SCRIP_i4) :: n, next_n, cell, srch_corners, pole_loc
+      integer (SCRIP_i4) :: n, next_n, cell, srch_corners
 
       integer (SCRIP_i4), save :: 
      &     last_loc  ! save location when crossing threshold
@@ -1071,6 +1090,10 @@
         !***
 
         cell_loop: do cell=1,num_srch_cells
+          !print *,'srch cell ',srch_add(cell)
+          !do n=1,srch_corners
+          !  print *,srch_corner_lon(n,cell),srch_corner_lat(n,cell)
+          !end do
           corner_loop: do n=1,srch_corners
             next_n = MOD(n,srch_corners) + 1
 
@@ -1093,11 +1116,13 @@
             !*** the endpoint
             !***
 
+            !print *,'endpoint check ', vec2_lon, vec2_lat
             if (vec2_lat == 0 .and. vec2_lon == 0) then
               lat1 = lat1 + 1.d-10*(lat2-lat1)
               lon1 = lon1 + 1.d-10*(lon2-lon1)
               vec2_lat = lat1 - srch_corner_lat(n,cell)
               vec2_lon = lon1 - srch_corner_lon(n,cell)
+              !print *,'offsetting endpoint ', lon1, lat1
             endif
 
             !***
@@ -1116,6 +1141,7 @@
             endif
 
             cross_product = vec1_lon*vec2_lat - vec2_lon*vec1_lat
+            !print *,'cross_product1 ', cross_product
 
             !***
             !*** if the cross product for a side is zero, the point 
@@ -1130,7 +1156,7 @@
             !***   product is positive (parallel vs anti-parallel).
             !***
 
-            if (cross_product == zero) then
+            if (abs(cross_product) < tiny) then
               if (vec1_lat /= zero .or. vec1_lon /= zero) then
                 vec2_lat = lat2 - lat1
                 vec2_lon = lon2 - lon1
@@ -1146,7 +1172,7 @@
                 cross_product = one
               endif
 
-              if (cross_product == zero) then
+              if (abs(cross_product) <= tiny) then
                 lcoinc = .true.
                 cross_product = vec1_lon*vec2_lon + vec1_lat*vec2_lat
                 if (lrevers) cross_product = -cross_product
@@ -1158,6 +1184,7 @@
             !*** doesn't work
             !***
 
+            !print *,'cross_product2 ', cross_product
             if (cross_product < zero) exit corner_loop
 
           end do corner_loop
@@ -1203,6 +1230,7 @@
         s1 = s1 + 0.001_SCRIP_r8
         lat1 = beglat + s1*(endlat - beglat)
         lon1 = beglon + s1*(lon2   - beglon)
+        !print *,'outside ',lon1, lat1
 
         !***
         !*** reached the end of the segment and still outside the grid
@@ -1439,7 +1467,7 @@
 !
 !-----------------------------------------------------------------------
 
-      integer (SCRIP_i4) :: n, next_n, cell, srch_corners, pole_loc
+      integer (SCRIP_i4) :: n, next_n, cell, srch_corners
 
       logical (SCRIP_logical) :: loutside ! flags points outside grid
 
@@ -1957,7 +1985,7 @@
 !-----------------------------------------------------------------------
 
       real (SCRIP_r8) :: dphi, sinth1, sinth2, costh1, costh2, fac,
-     &                        phi1, phi2, phidiff1, phidiff2, sinint
+     &                        phi1, phi2
       real (SCRIP_r8) :: f1, f2, fint
 
 !-----------------------------------------------------------------------

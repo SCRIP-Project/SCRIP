@@ -39,6 +39,7 @@
 !-----------------------------------------------------------------------
 
       use SCRIP_KindsMod    ! defines data types
+      use SCRIP_ErrorMod    ! error tracking
       use SCRIP_IOUnitsMod  ! manages I/O units
       use constants    ! common constants
       use netcdf_mod   ! netCDF stuff
@@ -77,11 +78,11 @@
 !
 !-----------------------------------------------------------------------
 
-      logical (SCRIP_logical), dimension(:), allocatable, save ::
+      logical (SCRIP_logical), dimension(:), allocatable, target,save ::
      &             grid1_mask,        ! flag which cells participate
      &             grid2_mask         ! flag which cells participate
 
-      real (SCRIP_r8), dimension(:), allocatable, save ::
+      real (SCRIP_r8), dimension(:), allocatable, target, save ::
      &             grid1_center_lat,  ! lat/lon coordinates for
      &             grid1_center_lon,  ! each grid center in radians
      &             grid2_center_lat, 
@@ -93,7 +94,7 @@
      &             grid1_frac,        ! fractional area of grid cells
      &             grid2_frac         ! participating in remapping
 
-      real (SCRIP_r8), dimension(:,:), allocatable, save ::
+      real (SCRIP_r8), dimension(:,:), allocatable, target, save ::
      &             grid1_corner_lat,  ! lat/lon coordinates for
      &             grid1_corner_lon,  ! each grid corner in radians
      &             grid2_corner_lat, 
@@ -104,7 +105,7 @@
      &,            luse_grid1_area   ! use area from grid file
      &,            luse_grid2_area   ! use area from grid file
 
-      real (SCRIP_r8), dimension(:,:), allocatable, save ::
+      real (SCRIP_r8), dimension(:,:), allocatable, target, save ::
      &             grid1_bound_box,  ! lat/lon bounding box for use
      &             grid2_bound_box   ! in restricting grid searches
 
@@ -134,7 +135,7 @@
 
 !***********************************************************************
 
-      subroutine grid_init(grid1_file, grid2_file)
+      subroutine grid_init(grid1_file, grid2_file, errorCode)
 
 !-----------------------------------------------------------------------
 !
@@ -151,6 +152,15 @@
 
       character(SCRIP_charLength), intent(in) :: 
      &             grid1_file, grid2_file  ! grid data files
+
+!-----------------------------------------------------------------------
+!
+!     output variables
+!
+!-----------------------------------------------------------------------
+
+      integer (SCRIP_i4), intent(out) ::
+     &   errorCode                 ! returned error code
 
 !-----------------------------------------------------------------------
 !
@@ -205,6 +215,8 @@
 !     open grid files and read grid size/name data
 !
 !-----------------------------------------------------------------------
+
+      errorCode = SCRIP_Success
 
       ncstat = nf90_open(grid1_file, NF90_NOWRITE, nc_grid1_id)
       call netcdf_error_handler(ncstat)
@@ -274,7 +286,9 @@
      &          grid2_center_lat(grid2_size), 
      &          grid2_center_lon(grid2_size),
      &          grid1_area      (grid1_size),
+     &          grid1_area_in   (grid1_size),
      &          grid2_area      (grid2_size),
+     &          grid2_area_in   (grid2_size),
      &          grid1_frac      (grid1_size),
      &          grid2_frac      (grid2_size),
      &          grid1_corner_lat(grid1_corners, grid1_size),
@@ -328,7 +342,6 @@
       call netcdf_error_handler(ncstat)
 
       if (luse_grid1_area) then
-        allocate (grid1_area_in(grid1_size))
         ncstat = nf90_inq_varid(nc_grid1_id, 'grid_area', 
      &                                       nc_grid1area_id)
         call netcdf_error_handler(ncstat)
@@ -449,7 +462,6 @@
       call netcdf_error_handler(ncstat)
 
       if (luse_grid2_area) then
-        allocate (grid2_area_in(grid2_size))
         ncstat = nf90_inq_varid(nc_grid2_id, 'grid_area', 
      &                                       nc_grid2area_id)
         call netcdf_error_handler(ncstat)
@@ -833,8 +845,124 @@
       end select
 
 !-----------------------------------------------------------------------
+!
+!     if area not read in, compute an area
+!
+!-----------------------------------------------------------------------
+
+      if (.not. luse_grid1_area) then
+         call SCRIP_GridComputeArea(grid1_area_in, grid1_corner_lat,
+     &                              grid1_corner_lon, errorCode)
+
+         if (SCRIP_ErrorCheck(errorCode, 
+     &         'SCRIP_Grids:error computing grid1 area')) return
+      endif
+
+      if (.not. luse_grid2_area) then
+         call SCRIP_GridComputeArea(grid2_area_in, grid2_corner_lat,
+     &                              grid2_corner_lon, errorCode)
+
+         if (SCRIP_ErrorCheck(errorCode, 
+     &         'SCRIP_Grids:error computing grid2 area')) return
+      endif
+
+!-----------------------------------------------------------------------
 
       end subroutine grid_init
+
+!***********************************************************************
+!BOP
+! !IROUTINE: SCRIP_GridComputeArea -- computes grid cell areas
+! !INTERFACE:
+
+      subroutine SCRIP_GridComputeArea(area, cornerLat, cornerLon,
+     &                                 errorCode)
+
+! !DESCRIPTION:
+!  This routine computes a grid cell area based on corner lat/lon
+!  coordinates.  It is provided in the case that a user supplied
+!  area is not available.
+!
+! !REVISION HISTORY:
+!  same as module
+
+! !OUTPUT PARAMETERS:
+
+      real (SCRIP_r8), dimension(:), intent(out) ::
+     &   area              ! computed area for each grid cell
+
+      integer (SCRIP_i4), intent(out) ::
+     &   errorCode         ! returned error code
+
+! !INPUT PARAMETERS:
+
+      real (SCRIP_r8), dimension(:,:), intent(in) ::
+     &   cornerLat,        ! latitude  of each cell corner
+     &   cornerLon         ! longitude of each cell corner
+
+!EOP
+!BOC
+!-----------------------------------------------------------------------
+!
+!  local variables
+!
+!-----------------------------------------------------------------------
+
+      integer (SCRIP_i4) ::
+     &   numCells,           ! number of grid cells
+     &   numCorners,         ! number of corners in each cell
+     &   nCell,              ! loop index for grid cells
+     &   nCorner,            ! loop index for corners in each cell
+     &   nextCorner          ! next corner around cell perimeter
+
+      real (SCRIP_r8) ::
+     &   dphi                ! delta(longitude) for this segment
+     
+!-----------------------------------------------------------------------
+!
+!  determine size of grid and initialize
+!
+!-----------------------------------------------------------------------
+
+      errorCode = SCRIP_Success
+
+      numCells   = size(CornerLat, dim=2)
+      numCorners = size(CornerLat, dim=1)
+
+!-----------------------------------------------------------------------
+!
+!  compute area for each cell by integrating around cell edge
+!
+!-----------------------------------------------------------------------
+
+      do nCell=1,numCells
+
+         Area(nCell) = 0.0_SCRIP_r8
+
+         do nCorner=1,numCorners
+            nextCorner = mod(nCorner,numCorners) + 1
+
+            !*** trapezoid rule - delta(Lon) is -0.5*dx
+            dphi = CornerLon(   nCorner,nCell) - 
+     &             CornerLon(nextCorner,nCell)
+            if (dphi > pi) then
+               dphi = dphi - pi2
+            else if (dphi < -pi) then
+               dphi = dphi + pi2
+            endif
+            dphi = 0.5_SCRIP_r8*dphi
+
+            Area(nCell) = Area(nCell) + 
+     &                    dphi*(sin(CornerLat(   nCorner,nCell)) +
+     &                          sin(CornerLat(nextCorner,nCell)))
+         end do
+
+      end do
+
+!-----------------------------------------------------------------------
+!EOC
+
+      end subroutine SCRIP_GridComputeArea
 
 !***********************************************************************
 

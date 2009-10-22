@@ -177,6 +177,8 @@
         map_type = map_type_distwgt
       case('Bicubic remapping')
         map_type = map_type_bicubic
+      case('Particle remapping')
+        map_type = map_type_particle
       case default
         print *,'map_type = ',map_method
         stop 'Invalid Map Type'

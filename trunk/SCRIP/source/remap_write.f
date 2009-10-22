@@ -163,6 +163,8 @@
         map_method = 'Distance weighted avg of nearest neighbors'
       case(map_type_bicubic)
         map_method = 'Bicubic remapping'
+      case(map_type_particle)
+        map_method = 'Particle remapping'
       case default
         stop 'Invalid Map Type'
       end select
@@ -1466,7 +1468,7 @@
 
         if (num_wts == 1) then
           ncstat = nf90_put_var(nc_file_id, nc_rmpmatrix_id, 
-     &                               wts_map1)
+     &                               wts_map1(1,:))
           call netcdf_error_handler(ncstat)
         else
           allocate(wts1(num_links_map1),wts2(num_wts-1,num_links_map1))
@@ -1490,7 +1492,8 @@
         call netcdf_error_handler(ncstat)
 
         if (num_wts == 1) then
-          ncstat = nf90_put_var(nc_file_id, nc_rmpmatrix_id, wts_map2)
+          ncstat = nf90_put_var(nc_file_id, nc_rmpmatrix_id, 
+     &                          wts_map2(1,:))
           call netcdf_error_handler(ncstat)
         else
           allocate(wts1(num_links_map2),wts2(num_wts-1,num_links_map2))

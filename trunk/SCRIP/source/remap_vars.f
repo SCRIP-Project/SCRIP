@@ -57,6 +57,7 @@
      &,     map_type_bilinear = 2
      &,     map_type_bicubic  = 3
      &,     map_type_distwgt  = 4
+     &,     map_type_particle = 5
 
       integer (SCRIP_i4), save :: 
      &      max_links_map1  ! current size of link arrays
@@ -109,6 +110,8 @@
       case(map_type_bicubic)
         num_wts = 4
       case(map_type_distwgt)
+        num_wts = 1
+      case(map_type_particle)
         num_wts = 1
       end select
 
