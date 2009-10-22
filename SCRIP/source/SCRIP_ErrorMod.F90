@@ -146,13 +146,13 @@
 
 ! !OUTPUT PARAMETERS:
 
-   integer (SCRIP_i4), intent(out) :: &
-      errorCode              ! Error code to set to fail
-
    logical (SCRIP_logical) :: &
       SCRIP_ErrorCheck
 
 ! !INPUT PARAMETERS:
+
+   integer (SCRIP_i4), intent(in) :: &
+      errorCode              ! Error code to check
 
    character (*), intent(in) :: &
       errorMsg               ! message to add to error log for printing

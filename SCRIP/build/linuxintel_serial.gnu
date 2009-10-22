@@ -1,9 +1,9 @@
 #-----------------------------------------------------------------------
 #
-# File:  sgialtix_mpi.gnu
+# File:  linuxintel_serial.gnu
 #
-#  Contains compiler and loader options for the SGI Altix using the 
-#  intel compiler and specifies the mpi directory for communications 
+#  Contains compiler and loader options for linux machines using the 
+#  intel compiler and specifies the serial directory for communications 
 #  modules.
 #
 #-----------------------------------------------------------------------
@@ -40,12 +40,7 @@ TRAP_FPE = no
 #  precompiler options
 #------------------------------------------------------------------
 
-#DCOUPL              = -Dcoupled
-
-Cpp_opts =   \
-      $(DCOUPL)
-
-Cpp_opts := $(Cpp_opts) -DPOSIX 
+Cpp_opts = -DPOSIX 
  
 #----------------------------------------------------------------------------
 #
