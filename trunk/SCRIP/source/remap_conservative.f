@@ -151,13 +151,7 @@
       allocate(srch_mask(grid2_size))
 
       print *,'grid1 sweep'
-      !do grid1_add = 1,grid1_size
-      do grid1_add = 343,343
-         print *,grid1_add
-         do n=1,4
-          print *,grid1_corner_lon(n,grid1_add), 
-     &            grid1_corner_lat(n,grid1_add)
-         end do
+      do grid1_add = 1,grid1_size
 
         !***
         !*** restrict searches first using search bins
@@ -242,9 +236,6 @@
             endlon = grid1_corner_lon(corner,grid1_add)
             lrevers = .true.
           endif
-          print *,'corner',corner
-          print *,beglon,beglat
-          print *,endlon,endlat
 
           begseg(1) = beglat
           begseg(2) = beglon
@@ -286,15 +277,6 @@
      &                        lbegin, lrevers)
             call timer_stop(2)
             lbegin = .false.
-            print *,grid2_add,intrsct_lon,intrsct_lat
-            if (grid2_add /= 0) then
-              do n=1,4
-                print *,grid2_corner_lon(n,grid2_add),
-     &                  grid2_corner_lat(n,grid2_add)
-              end do
-            !else
-            !  stop
-            endif
 
             !***
             !*** compute line integral for this subsegment.
@@ -395,8 +377,7 @@
       allocate(srch_mask(grid1_size))
 
       print *,'grid2 sweep '
-      !do grid2_add = 1,grid2_size
-      do grid2_add = grid2_size,1
+      do grid2_add = 1,grid2_size
 
         !***
         !*** restrict searches first using search bins
