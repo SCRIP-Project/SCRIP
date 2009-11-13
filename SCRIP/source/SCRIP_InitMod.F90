@@ -54,10 +54,18 @@
 ! !OUTPUT PARAMETERS:
 
    integer (SCRIP_i4), intent(out) :: &
-      errorCode              ! Error code to set to fail
+      errorCode              ! returned error code
 
 !EOP
 !BOC
+!-----------------------------------------------------------------------
+!
+!  local variables
+!
+!-----------------------------------------------------------------------
+
+   character (16), parameter :: rtnName = 'SCRIP_Initialize'
+
 !-----------------------------------------------------------------------
 !
 !  initialize by calling any required initialization routines

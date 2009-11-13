@@ -77,7 +77,7 @@
 ! !IROUTINE: SCRIP_ErrorSet -- sets error code and logs error message
 ! !INTERFACE:
 
- subroutine SCRIP_ErrorSet(errorCode, errorMsg)
+ subroutine SCRIP_ErrorSet(errorCode, rtnName, errorMsg)
 
 ! !DESCRIPTION:
 !  This routine sets an error code to SCRIP\_Fail and adds a message to
@@ -94,10 +94,20 @@
 ! !INPUT PARAMETERS:
 
    character (*), intent(in) :: &
+      rtnName,              &! name of calling routine
       errorMsg               ! message to add to error log for printing
 
 !EOP
 !BOC
+!-----------------------------------------------------------------------
+!
+!  Local variables
+!
+!-----------------------------------------------------------------------
+
+   character(SCRIP_charLength) :: &
+      logErrorMsg         ! constructed error message with routine name
+
 !-----------------------------------------------------------------------
 !
 !  Set error code to fail
@@ -115,7 +125,8 @@
    SCRIP_errorMsgCount = SCRIP_errorMsgCount + 1
 
    if (SCRIP_errorMsgCount <= SCRIP_errorLogDepth) then
-      SCRIP_errorLog(SCRIP_errorMsgCount) = errorMsg
+      write(logErrorMsg,'(a,a2,a)') rtnName,': ',errorMsg
+      SCRIP_errorLog(SCRIP_errorMsgCount) = logErrorMsg
    endif
 
 !-----------------------------------------------------------------------
@@ -128,7 +139,7 @@
 ! !IROUTINE: SCRIP_ErrorCheck -- checks error code and logs error message
 ! !INTERFACE:
 
- function SCRIP_ErrorCheck(errorCode, errorMsg)
+ function SCRIP_ErrorCheck(errorCode, rtnName, errorMsg)
 
 ! !DESCRIPTION:
 !  This function checks an error code and adds a message to the error
@@ -138,7 +149,7 @@
 !  failure code SCRIP\_Fail, it returns a logical true value so that
 !  it can be used in a typical call like:
 !  \begin{verbatim}
-!    if (SCRIP_ErrorCheck(errorCode, errorMsg)) return
+!    if (SCRIP_ErrorCheck(errorCode, rtnName, errorMsg)) return
 !  \end{verbatim}
 !
 ! !REVISION HISTORY:
@@ -155,10 +166,20 @@
       errorCode              ! Error code to check
 
    character (*), intent(in) :: &
+      rtnName,              &! name of calling routine
       errorMsg               ! message to add to error log for printing
 
 !EOP
 !BOC
+!-----------------------------------------------------------------------
+!
+!  local variables
+!
+!-----------------------------------------------------------------------
+
+   character (SCRIP_charLength) :: &
+      logErrorMsg    ! constructed error message with routine name
+
 !-----------------------------------------------------------------------
 !
 !  If the error code is success, set the return value to false.
@@ -181,7 +202,8 @@
       SCRIP_errorMsgCount = SCRIP_errorMsgCount + 1
 
       if (SCRIP_errorMsgCount <= SCRIP_errorLogDepth) then
-         SCRIP_errorLog(SCRIP_errorMsgCount) = errorMsg
+         write(logErrorMsg,'(a,a2,a)') rtnName,': ',errorMsg
+         SCRIP_errorLog(SCRIP_errorMsgCount) = logErrorMsg
       endif
    endif
 
