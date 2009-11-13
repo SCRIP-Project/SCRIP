@@ -131,6 +131,9 @@
    logical (SCRIP_logical) :: &
       boundBoxOverlap       ! true if two bounding boxes overlap
  
+   character (25), parameter :: &
+      rtnName = 'SCRIP_RemapParticleCreate'
+
 !-----------------------------------------------------------------------
 !
 !  particles should be distributed on finer grid, so determine which
@@ -191,8 +194,8 @@
             stat = allocStatus)
 
    if (allocStatus > 0) then
-      call SCRIP_ErrorSet(errorCode, &
-         'SCRIP_RemapParticle: error allocating particle arrays')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                          'error allocating particle arrays')
       return
    endif
 
@@ -249,8 +252,8 @@
                                errorCode)
       end do
 
-      if (SCRIP_ErrorCheck(errorCode, &
-         'SCRIP_RemapParticleCreate: error finding part in fine grid')) return
+      if (SCRIP_ErrorCheck(errorCode, rtnName, &
+                           'error finding part in fine grid')) return
 
       !***
       !*** determine number of particles in play and assigne equal
@@ -260,8 +263,8 @@
       numFound = count(partFound)
 
       if (numFound == 0) then
-         call SCRIP_ErrorSet(errorCode, &
-            'SCRIP_RemapParticleCreate: no particles located on fine grid')
+         call SCRIP_ErrorSet(errorCode, rtnName, &
+                             'no particles located on fine grid')
          return
       endif
 
@@ -354,16 +357,16 @@
                                   gridCornerLonCoarse(:,coarseCell), &
                                   errorCode)
 
-               if (SCRIP_ErrorCheck(errorCode,                       &
-                  'SCRIP_RemapPartCreate: error in particle find')) return
+               if (SCRIP_ErrorCheck(errorCode, rtnName, &
+                                    'error in particle find')) return
 
                if (partFound(nPart)) then
 
                   call SCRIP_RemapParticleStoreLink(srcAdd, dstAdd,  &
                                                     weights, errorCode)
 
-                  if (SCRIP_ErrorCheck(errorCode,                    &
-                     'SCRIP_RemapPartCreate: error storing link')) return
+                  if (SCRIP_ErrorCheck(errorCode, rtnName, &
+                                       'error storing link')) return
 
                   gridFracFine  (  fineCell) = gridFracFine  (  fineCell) + &
                                                partArea
@@ -392,8 +395,8 @@
               stat = allocStatus)
 
    if (allocStatus > 0) then
-      call SCRIP_ErrorSet(errorCode, &
-         'SCRIP_RemapParticle: error deallocating particle arrays')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                          'error deallocating particle arrays')
       return
    endif
 
@@ -534,6 +537,9 @@
       vec2Lat, vec2Lon,  &! during grid search
       crossProduct
 
+   character (25), parameter :: &
+      rtnName = 'SCRIP_RemapParticleInCell'
+
 !-----------------------------------------------------------------------
 !
 ! initialize defaults
@@ -664,6 +670,9 @@
       firstCall = .true.  ! flag to determine first call to this routine
                           ! for allocation purposes
 
+   character (28), parameter :: &
+      rtnName = 'SCRIP_RemapParticleStoreLink'
+
 !-----------------------------------------------------------------------
 !
 !  if all weights are zero, do not bother storing the link
@@ -685,8 +694,8 @@
                linkAdd2(2,grid2_size), stat=allocStatus)
 
       if (allocStatus > 0) then
-         call SCRIP_ErrorSet(errorCode, &
-            'SCRIP_RegridStoreLink: error allocating address arrays')
+         call SCRIP_ErrorSet(errorCode, rtnName, &
+                             'error allocating address arrays')
          return
       endif
 

@@ -98,6 +98,8 @@ contains
 
    integer (SCRIP_i4) :: ierr  ! status flag from open
 
+   character (16), parameter :: rtnName = 'SCRIP_ConfigOpen'
+
 !-----------------------------------------------------------------------
 !
 !  get unit number for input file to be read
@@ -130,8 +132,8 @@ contains
    call SCRIP_Broadcast(ierr, SCRIP_masterTask, errorCode)
 
    if (ierr > 0 .or. errorCode /= SCRIP_Success) then
-      call SCRIP_ErrorSet(errorCode, &
-         'SCRIP_ConfigOpen: error opening config file')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                          'error opening config file')
       return
    endif
 
@@ -259,6 +261,9 @@ contains
       inputString,          &! temp for reading each record
       tmpString              ! temp for manipulating input string
 
+   character (16), parameter :: &
+      rtnName = 'SCRIP_ConfigRead'
+
 !-----------------------------------------------------------------------
 !
 !  check to see if unit is open and rewind unit
@@ -360,24 +365,21 @@ contains
 
    call SCRIP_Broadcast(errVal, SCRIP_masterTask, errorCode)
 
-   if (errorCode /= SCRIP_Success) then
-      call SCRIP_ErrorSet(errorCode, &
-         'SCRIP_ConfigRead: error broadcasting error value')
-      return
-   endif
+   if (SCRIP_ErrorCheck(errorCode, rtnName, &
+                        'error broadcasting error value')) return
 
    select case(errVal)
    case (-1)
-      call SCRIP_ErrorSet(errorCode, &
-         'SCRIP_ConfigRead: config file not opened for reading')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                          'config file not opened for reading')
       return
    case (-2)
-      call SCRIP_ErrorSet(errorCode, &
-         'SCRIP_ConfigRead: error reading record from config file')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                          'error reading record from config file')
       return
    case (-3)
-      call SCRIP_ErrorSet(errorCode, &
-         'SCRIP_ConfigRead: module name not found in config file')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                          'module name not found in config file')
       return
    case default
    end select
@@ -407,11 +409,8 @@ contains
 
    call SCRIP_Broadcast(variable, SCRIP_masterTask, errorCode)
 
-   if (errorCode /= SCRIP_Success) then
-      call SCRIP_ErrorSet(errorCode, &
-         'SCRIP_ConfigRead: error broadcasting variable')
-      return
-   endif
+   if (SCRIP_ErrorCheck(errorCode, rtnName, &
+                        'error broadcasting variable')) return
 
 !-----------------------------------------------------------------------
 !
@@ -510,6 +509,9 @@ contains
       inputString,          &! temp for reading each record
       tmpString              ! temp for manipulating input string
 
+   character (16), parameter :: &
+      rtnName = 'SCRIP_ConfigRead'
+
 !-----------------------------------------------------------------------
 !
 !  check to see if unit is open and rewind unit
@@ -611,24 +613,21 @@ contains
 
    call SCRIP_Broadcast(errVal, SCRIP_masterTask, errorCode)
 
-   if (errorCode /= SCRIP_Success) then
-      call SCRIP_ErrorSet(errorCode, &
-         'SCRIP_ConfigRead: error broadcasting error value')
-      return
-   endif
+   if (SCRIP_ErrorCheck(errorCode, rtnName, &
+                        'error broadcasting error value')) return
 
    select case(errVal)
    case (-1)
-      call SCRIP_ErrorSet(errorCode, &
-         'SCRIP_ConfigRead: config file not opened for reading')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                          'config file not opened for reading')
       return
    case (-2)
-      call SCRIP_ErrorSet(errorCode, &
-         'SCRIP_ConfigRead: error reading record from config file')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                          'error reading record from config file')
       return
    case (-3)
-      call SCRIP_ErrorSet(errorCode, &
-         'SCRIP_ConfigRead: module name not found in config file')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                          'module name not found in config file')
       return
    case default
    end select
@@ -658,11 +657,8 @@ contains
 
    call SCRIP_Broadcast(variable, SCRIP_masterTask, errorCode)
 
-   if (errorCode /= SCRIP_Success) then
-      call SCRIP_ErrorSet(errorCode, &
-         'SCRIP_ConfigRead: error broadcasting variable')
-      return
-   endif
+   if (SCRIP_ErrorCheck(errorCode, rtnName, &
+                        'error broadcasting variable')) return
 
 !-----------------------------------------------------------------------
 !
@@ -760,6 +756,9 @@ contains
       inputString,          &! temp for reading each record
       tmpString              ! temp for manipulating input string
 
+   character (16), parameter :: &
+      rtnName = 'SCRIP_ConfigRead'
+
 !-----------------------------------------------------------------------
 !
 !  check to see if unit is open and rewind unit
@@ -861,24 +860,21 @@ contains
 
    call SCRIP_Broadcast(errVal, SCRIP_masterTask, errorCode)
 
-   if (errorCode /= SCRIP_Success) then
-      call SCRIP_ErrorSet(errorCode, &
-         'SCRIP_ConfigRead: error broadcasting error value')
-      return
-   endif
+   if (SCRIP_ErrorCheck(errorCode, rtnName, &
+                        'error broadcasting error value')) return
 
    select case(errVal)
    case (-1)
-      call SCRIP_ErrorSet(errorCode, &
-         'SCRIP_ConfigRead: config file not opened for reading')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                          'config file not opened for reading')
       return
    case (-2)
-      call SCRIP_ErrorSet(errorCode, &
-         'SCRIP_ConfigRead: error reading record from config file')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                          'error reading record from config file')
       return
    case (-3)
-      call SCRIP_ErrorSet(errorCode, &
-         'SCRIP_ConfigRead: module name not found in config file')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                          'module name not found in config file')
       return
    case default
    end select
@@ -908,11 +904,8 @@ contains
 
    call SCRIP_Broadcast(variable, SCRIP_masterTask, errorCode)
 
-   if (errorCode /= SCRIP_Success) then
-      call SCRIP_ErrorSet(errorCode, &
-         'SCRIP_ConfigRead: error broadcasting variable')
-      return
-   endif
+   if (SCRIP_ErrorCheck(errorCode, rtnName, &
+                        'error broadcasting variable')) return
 
 !-----------------------------------------------------------------------
 !
@@ -1010,6 +1003,9 @@ contains
       inputString,          &! temp for reading each record
       tmpString              ! temp for manipulating input string
 
+   character (16), parameter :: &
+      rtnName = 'SCRIP_ConfigRead'
+
 !-----------------------------------------------------------------------
 !
 !  check to see if unit is open and rewind unit
@@ -1111,24 +1107,21 @@ contains
 
    call SCRIP_Broadcast(errVal, SCRIP_masterTask, errorCode)
 
-   if (errorCode /= SCRIP_Success) then
-      call SCRIP_ErrorSet(errorCode, &
-         'SCRIP_ConfigRead: error broadcasting error value')
-      return
-   endif
+   if (SCRIP_ErrorCheck(errorCode, rtnName, &
+                        'error broadcasting error value')) return
 
    select case(errVal)
    case (-1)
-      call SCRIP_ErrorSet(errorCode, &
-         'SCRIP_ConfigRead: config file not opened for reading')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                          'config file not opened for reading')
       return
    case (-2)
-      call SCRIP_ErrorSet(errorCode, &
-         'SCRIP_ConfigRead: error reading record from config file')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                          'error reading record from config file')
       return
    case (-3)
-      call SCRIP_ErrorSet(errorCode, &
-         'SCRIP_ConfigRead: module name not found in config file')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                          'module name not found in config file')
       return
    case default
    end select
@@ -1158,11 +1151,8 @@ contains
 
    call SCRIP_Broadcast(variable, SCRIP_masterTask, errorCode)
 
-   if (errorCode /= SCRIP_Success) then
-      call SCRIP_ErrorSet(errorCode, &
-         'SCRIP_ConfigRead: error broadcasting variable')
-      return
-   endif
+   if (SCRIP_ErrorCheck(errorCode, rtnName, &
+                        'error broadcasting variable')) return
 
 !-----------------------------------------------------------------------
 !
@@ -1268,6 +1258,9 @@ contains
       inputString,          &! temp for reading each record
       tmpString              ! temp for manipulating input string
 
+   character (16), parameter :: &
+      rtnName = 'SCRIP_ConfigRead'
+
 !-----------------------------------------------------------------------
 !
 !  check to see if unit is open and rewind unit
@@ -1369,24 +1362,21 @@ contains
 
    call SCRIP_Broadcast(errVal, SCRIP_masterTask, errorCode)
 
-   if (errorCode /= SCRIP_Success) then
-      call SCRIP_ErrorSet(errorCode, &
-         'SCRIP_ConfigRead: error broadcasting error value')
-      return
-   endif
+   if (SCRIP_ErrorCheck(errorCode, rtnName, &
+                        'error broadcasting error value')) return
 
    select case(errVal)
    case (-1)
-      call SCRIP_ErrorSet(errorCode, &
-         'SCRIP_ConfigRead: config file not opened for reading')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                          'config file not opened for reading')
       return
    case (-2)
-      call SCRIP_ErrorSet(errorCode, &
-         'SCRIP_ConfigRead: error reading record from config file')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                          'error reading record from config file')
       return
    case (-3)
-      call SCRIP_ErrorSet(errorCode, &
-         'SCRIP_ConfigRead: module name not found in config file')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                          'module name not found in config file')
       return
    case default
    end select
@@ -1416,11 +1406,8 @@ contains
 
    call SCRIP_Broadcast(variable, SCRIP_masterTask, errorCode)
 
-   if (errorCode /= SCRIP_Success) then
-      call SCRIP_ErrorSet(errorCode, &
-         'SCRIP_ConfigRead: error broadcasting variable')
-      return
-   endif
+   if (SCRIP_ErrorCheck(errorCode, rtnName, &
+                        'error broadcasting variable')) return
 
 !-----------------------------------------------------------------------
 !

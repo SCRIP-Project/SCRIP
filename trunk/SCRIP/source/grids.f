@@ -42,8 +42,8 @@
       use SCRIP_ErrorMod    ! error tracking
       use SCRIP_IOUnitsMod  ! manages I/O units
       use constants    ! common constants
-      use netcdf_mod   ! netCDF stuff
-      use netcdf
+      use SCRIP_NetcdfMod   ! netCDF stuff
+      use netcdf            ! netCDF library module
 
       implicit none
 
@@ -210,6 +210,9 @@
       real (SCRIP_r8), dimension(4) ::
      &  tmp_lats, tmp_lons  ! temps for computing bounding boxes
 
+      character (9), parameter ::
+     &   rtnName = 'grid_init'
+
 !-----------------------------------------------------------------------
 !
 !     open grid files and read grid size/name data
@@ -219,59 +222,81 @@
       errorCode = SCRIP_Success
 
       ncstat = nf90_open(grid1_file, NF90_NOWRITE, nc_grid1_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName, 
+     &                           'error opening grid1 file')) return
 
       ncstat = nf90_open(grid2_file, NF90_NOWRITE, nc_grid2_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                           'error opening grid2 file')) return
 
       ncstat = nf90_inq_dimid(nc_grid1_id, 'grid_size', nc_grid1size_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                           'error reading grid1 size id')) return
+
       ncstat = nf90_inquire_dimension(nc_grid1_id, nc_grid1size_id, 
      &                                len=grid1_size)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName, 
+     &                           'error reading grid1 size')) return
 
       ncstat = nf90_inq_dimid(nc_grid2_id, 'grid_size', nc_grid2size_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                           'error reading grid2 size id')) return
+
       ncstat = nf90_inquire_dimension(nc_grid2_id, nc_grid2size_id, 
      &                                len=grid2_size)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                           'error reading grid2 size')) return
 
       ncstat = nf90_inq_dimid(nc_grid1_id, 'grid_rank', nc_grid1rank_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                           'error reading grid1 rank id')) return
+
       ncstat = nf90_inquire_dimension(nc_grid1_id, nc_grid1rank_id, 
      &                                len=grid1_rank)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                           'error reading grid1 rank')) return
 
       ncstat = nf90_inq_dimid(nc_grid2_id, 'grid_rank', nc_grid2rank_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                           'error reading grid2 rank id')) return
+
       ncstat = nf90_inquire_dimension(nc_grid2_id, nc_grid2rank_id, 
      &                                len=grid2_rank)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                           'error reading grid2 rank')) return
 
       ncstat = nf90_inq_dimid(nc_grid1_id, 'grid_corners', 
      &                                     nc_grid1corn_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                 'error reading grid1 num corner id')) return
+
       ncstat = nf90_inquire_dimension(nc_grid1_id, nc_grid1corn_id,
      &                                len=grid1_corners)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &          'error reading number of corners in grid1')) return
 
       ncstat = nf90_inq_dimid(nc_grid2_id, 'grid_corners', 
      &                                      nc_grid2corn_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                 'error reading grid2 num corner id')) return
+
       ncstat = nf90_inquire_dimension(nc_grid2_id, nc_grid2corn_id, 
      &                                len=grid2_corners)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &          'error reading number of corners in grid2')) return
 
       allocate( grid1_dims(grid1_rank),
      &          grid2_dims(grid2_rank))
 
       ncstat = nf90_get_att(nc_grid1_id, nf90_global, 'title',
      &                      grid1_name)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                           'error reading grid1 name')) return
 
       ncstat = nf90_get_att(nc_grid2_id, nf90_global, 'title',
      &                      grid2_name)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                           'error reading grid2 name')) return
 
 !-----------------------------------------------------------------------
 !
@@ -302,52 +327,66 @@
 
       ncstat = nf90_inq_varid(nc_grid1_id, 'grid_dims', 
      &                                     nc_grid1dims_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                'error reading id for grid1 dims')) return
       ncstat = nf90_inq_varid(nc_grid1_id, 'grid_imask', 
      &                                     nc_grd1imask_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &               'error reading id for grid1 mask')) return
       ncstat = nf90_inq_varid(nc_grid1_id, 'grid_center_lat', 
      &                                   nc_grd1cntrlat_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &               'error reading id for grid center lats')) return
       ncstat = nf90_inq_varid(nc_grid1_id, 'grid_center_lon', 
      &                                   nc_grd1cntrlon_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &               'error reading id for grid center lons')) return
       ncstat = nf90_inq_varid(nc_grid1_id, 'grid_corner_lat', 
      &                                   nc_grd1crnrlat_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &               'error reading id for grid1 corner lats')) return
       ncstat = nf90_inq_varid(nc_grid1_id, 'grid_corner_lon', 
      &                                   nc_grd1crnrlon_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &               'error reading id for grid1 corner lons')) return
 
       ncstat = nf90_get_var(nc_grid1_id, nc_grid1dims_id, grid1_dims)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                           'error reading grid1 dims')) return
 
       ncstat = nf90_get_var(nc_grid1_id, nc_grd1imask_id, imask)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                           'error reading grid1 mask')) return
 
       ncstat = nf90_get_var(nc_grid1_id, nc_grd1cntrlat_id, 
      &                                   grid1_center_lat)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &               'error reading grid1 center lats')) return
 
       ncstat = nf90_get_var(nc_grid1_id, nc_grd1cntrlon_id, 
      &                                   grid1_center_lon)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &               'error reading grid1 center lons')) return
 
       ncstat = nf90_get_var(nc_grid1_id, nc_grd1crnrlat_id, 
      &                                   grid1_corner_lat)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &               'error reading grid1 corner lats')) return
 
       ncstat = nf90_get_var(nc_grid1_id, nc_grd1crnrlon_id, 
      &                                   grid1_corner_lon)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &               'error reading grid1 corner lons')) return
 
       if (luse_grid1_area) then
         ncstat = nf90_inq_varid(nc_grid1_id, 'grid_area', 
      &                                       nc_grid1area_id)
-        call netcdf_error_handler(ncstat)
+        if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                 'error getting id for grid1 area')) return
         ncstat = nf90_get_var(nc_grid1_id, nc_grid1area_id, 
      &                                     grid1_area_in)
-        call netcdf_error_handler(ncstat)
+        if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                 'error reading grid1 area')) return
       endif
 
       grid1_area = zero
@@ -369,7 +408,8 @@
       grid1_units = ' '
       ncstat = nf90_get_att(nc_grid1_id, nc_grd1cntrlat_id, 'units',
      &                      grid1_units)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &               'error getting grid1 center coord units')) return
 
       select case (grid1_units(1:7))
       case ('degrees')
@@ -391,7 +431,8 @@
       grid1_units = ' '
       ncstat = nf90_get_att(nc_grid1_id, nc_grd1crnrlat_id, 'units',
      &                      grid1_units)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &               'error reading grid1 corner coord units')) return
 
       select case (grid1_units(1:7))
       case ('degrees')
@@ -411,7 +452,8 @@
       end select
 
       ncstat = nf90_close(nc_grid1_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                           'error closing grid1 file')) return
 
 !-----------------------------------------------------------------------
 !
@@ -422,52 +464,66 @@
       allocate(imask(grid2_size))
 
       ncstat = nf90_inq_varid(nc_grid2_id, 'grid_dims', nc_grid2dims_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                           'error getting grid2 dim ids')) return
       ncstat = nf90_inq_varid(nc_grid2_id, 'grid_imask', 
      &                                      nc_grd2imask_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                           'error getting grid2 mask id')) return
       ncstat = nf90_inq_varid(nc_grid2_id, 'grid_center_lat', 
      &                                   nc_grd2cntrlat_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &               'error getting grid2 center lat id')) return
       ncstat = nf90_inq_varid(nc_grid2_id, 'grid_center_lon', 
      &                                   nc_grd2cntrlon_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &               'error getting grid2 center lon id')) return
       ncstat = nf90_inq_varid(nc_grid2_id, 'grid_corner_lat', 
      &                                   nc_grd2crnrlat_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &               'error getting grid2 corner lat id')) return
       ncstat = nf90_inq_varid(nc_grid2_id, 'grid_corner_lon', 
      &                                   nc_grd2crnrlon_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &               'error getting grid2 corner lon id')) return
 
       ncstat = nf90_get_var(nc_grid2_id, nc_grid2dims_id, grid2_dims)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                           'error reading grid2 dims')) return
 
       ncstat = nf90_get_var(nc_grid2_id, nc_grd2imask_id, imask)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                           'error reading grid2 mask')) return
 
       ncstat = nf90_get_var(nc_grid2_id, nc_grd2cntrlat_id, 
      &                                   grid2_center_lat)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &               'error reading grid2 center lat')) return
 
       ncstat = nf90_get_var(nc_grid2_id, nc_grd2cntrlon_id, 
      &                                   grid2_center_lon)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &               'error reading grid2 center lon')) return
 
       ncstat = nf90_get_var(nc_grid2_id, nc_grd2crnrlat_id, 
      &                                   grid2_corner_lat)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &               'error reading grid2 corner lat')) return
 
       ncstat = nf90_get_var(nc_grid2_id, nc_grd2crnrlon_id, 
      &                                   grid2_corner_lon)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &               'error reading grid2 corner lon')) return
 
       if (luse_grid2_area) then
         ncstat = nf90_inq_varid(nc_grid2_id, 'grid_area', 
      &                                       nc_grid2area_id)
-        call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &               'error getting grid2 area id')) return
         ncstat = nf90_get_var(nc_grid2_id, nc_grid2area_id, 
      &                                     grid2_area_in)
-        call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &               'error reading grid2 area')) return
       endif
 
       grid2_area = zero
@@ -489,7 +545,8 @@
       grid2_units = ' '
       ncstat = nf90_get_att(nc_grid2_id, nc_grd2cntrlat_id, 'units',
      &                         grid2_units)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &               'error reading grid2 center coord units')) return
 
       select case (grid2_units(1:7))
       case ('degrees')
@@ -511,7 +568,8 @@
       grid2_units = ' '
       ncstat = nf90_get_att(nc_grid2_id, nc_grd2crnrlat_id, 'units',
      &                      grid2_units)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &               'error reading grid2 corner coord units')) return
 
       select case (grid2_units(1:7))
       case ('degrees')
@@ -531,7 +589,8 @@
       end select
 
       ncstat = nf90_close(nc_grid2_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                           'error closing grid2 file')) return
 
 
 !-----------------------------------------------------------------------
@@ -854,16 +913,16 @@
          call SCRIP_GridComputeArea(grid1_area_in, grid1_corner_lat,
      &                              grid1_corner_lon, errorCode)
 
-         if (SCRIP_ErrorCheck(errorCode, 
-     &         'SCRIP_Grids:error computing grid1 area')) return
+         if (SCRIP_ErrorCheck(errorCode, rtnName, 
+     &                        'error computing grid1 area')) return
       endif
 
       if (.not. luse_grid2_area) then
          call SCRIP_GridComputeArea(grid2_area_in, grid2_corner_lat,
      &                              grid2_corner_lon, errorCode)
 
-         if (SCRIP_ErrorCheck(errorCode, 
-     &         'SCRIP_Grids:error computing grid2 area')) return
+         if (SCRIP_ErrorCheck(errorCode, rtnName, 
+     &                        'error computing grid2 area')) return
       endif
 
 !-----------------------------------------------------------------------

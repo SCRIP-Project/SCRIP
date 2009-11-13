@@ -37,12 +37,14 @@
 
 !-----------------------------------------------------------------------
 
-      use SCRIP_KindsMod ! defines common data types
+      use SCRIP_KindsMod  ! defines common data types
+      use SCRIP_ErrorMod  ! SCRIP  error handler
+      use SCRIP_NetcdfMod ! netCDF error handler
+      use netcdf          ! netCDF library
+
       use constants     ! defines common scalar constants
       use grids         ! module containing grid information
       use remap_vars    ! module containing remap information
-      use netcdf_mod    ! module with netCDF stuff
-      use netcdf
 
       implicit none
 
@@ -111,8 +113,8 @@
 
 !***********************************************************************
 
-      subroutine write_remap(map1_name, map2_name, 
-     &                       interp_file1, interp_file2, output_opt)
+      subroutine write_remap(map1_name, map2_name, interp_file1, 
+     &                       interp_file2, output_opt, errorCode)
 
 !-----------------------------------------------------------------------
 !
@@ -135,15 +137,28 @@
 
 !-----------------------------------------------------------------------
 !
+!     output variables
+!
+!-----------------------------------------------------------------------
+
+      integer (SCRIP_i4), intent(out) ::
+     &   errorCode              ! returned error code
+
+!-----------------------------------------------------------------------
+!
 !     local variables
 !
 !-----------------------------------------------------------------------
+
+      character (11), parameter :: rtnName = 'write_remap'
 
 !-----------------------------------------------------------------------
 !
 !     define some common variables to be used in all routines
 !
 !-----------------------------------------------------------------------
+
+      errorCode = SCRIP_Success
 
       select case(norm_opt)
       case (norm_opt_none)
@@ -166,7 +181,8 @@
       case(map_type_particle)
         map_method = 'Particle remapping'
       case default
-        stop 'Invalid Map Type'
+         call SCRIP_ErrorSet(errorCode, rtnName, 'Invalid Map Type')
+         return
       end select
 
       call date_and_time(date=cdate)
@@ -192,11 +208,17 @@
 
       select case(output_opt)
       case ('scrip')
-        call write_remap_scrip(map1_name, interp_file1, 1)
+         call write_remap_scrip(map1_name, interp_file1, 1, errorCode)
+         if (SCRIP_ErrorCheck(errorCode, rtnName,
+     &       'error in write_remap_scrip')) return
       case ('ncar-csm')
-        call write_remap_csm  (map1_name, interp_file1, 1)
+         call write_remap_csm  (map1_name, interp_file1, 1, errorCode)
+         if (SCRIP_ErrorCheck(errorCode, rtnName,
+     &       'error in write_remap_csm')) return
       case default
-        stop 'unknown output file convention'
+         call SCRIP_ErrorSet(errorCode, rtnName, 
+     &                       'unknown output file convention')
+         return
       end select
 
 !-----------------------------------------------------------------------
@@ -208,11 +230,17 @@
       if (num_maps > 1) then
         select case(output_opt)
         case ('scrip')
-          call write_remap_scrip(map2_name, interp_file2, 2)
+          call write_remap_scrip(map2_name, interp_file2, 2, errorCode)
+          if (SCRIP_ErrorCheck(errorCode, rtnName,
+     &        'error in write_remap_scrip')) return
         case ('ncar-csm')
-          call write_remap_csm  (map2_name, interp_file2, 2)
+          call write_remap_csm  (map2_name, interp_file2, 2, errorCode)
+          if (SCRIP_ErrorCheck(errorCode, rtnName,
+     &        'error in write_remap_csm')) return
         case default
-          stop 'unknown output file convention'
+          call SCRIP_ErrorSet(errorCode, rtnName,
+     &                        'unknown output file convention')
+          return
         end select
       endif
 
@@ -222,7 +250,8 @@
 
 !***********************************************************************
 
-      subroutine write_remap_scrip(map_name, interp_file, direction)
+      subroutine write_remap_scrip(map_name, interp_file, direction,
+     &                             errorCode)
 
 !-----------------------------------------------------------------------
 !
@@ -246,6 +275,15 @@
 
 !-----------------------------------------------------------------------
 !
+!     output variables
+!
+!-----------------------------------------------------------------------
+
+      integer (SCRIP_i4), intent(out) ::
+     &   errorCode              ! returned error code
+
+!-----------------------------------------------------------------------
+!
 !     local variables
 !
 !-----------------------------------------------------------------------
@@ -260,41 +298,50 @@
      &, itmp3             ! integer temp
      &, itmp4             ! integer temp
 
+      character (17), parameter :: rtnName = 'write_remap_scrip'
+
 !-----------------------------------------------------------------------
 !
 !     create netCDF file for mapping and define some global attributes
 !
 !-----------------------------------------------------------------------
 
+      errorCode = SCRIP_Success
+
       ncstat = nf90_create (interp_file, NF90_CLOBBER, nc_file_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                           'error creating remap file')) return
 
       !***
       !*** map name
       !***
       ncstat = nf90_put_att(nc_file_id, NF90_GLOBAL, 'title', map_name)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                           'error writing remap name')) return
 
       !***
       !*** normalization option
       !***
       ncstat = nf90_put_att(nc_file_id, NF90_GLOBAL, 'normalization',
      &                      normalize_opt)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                     'error writing normalize option')) return
 
       !***
       !*** map method
       !***
       ncstat = nf90_put_att(nc_file_id, NF90_GLOBAL, 'map_method',
      &                      map_method)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                         'error writing remap method')) return
 
       !***
       !*** history
       !***
       ncstat = nf90_put_att(nc_file_id, NF90_GLOBAL, 'history',
      &                      history)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                           'error writing history')) return
 
       !***
       !*** file convention
@@ -302,7 +349,8 @@
       convention = 'SCRIP'
       ncstat = nf90_put_att(nc_file_id, NF90_GLOBAL, 'conventions',
      &                                                convention)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                  'error writing output convention')) return
 
       !***
       !*** source and destination grid names
@@ -318,11 +366,13 @@
 
       ncstat = nf90_put_att(nc_file_id, NF90_GLOBAL, trim(grid1_ctmp),
      &                      grid1_name)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                      'error writing source grid name')) return
 
       ncstat = nf90_put_att(nc_file_id, NF90_GLOBAL, trim(grid2_ctmp),
      &                      grid2_name)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                   'error writing destination grid name')) return
 
 !-----------------------------------------------------------------------
 !
@@ -344,11 +394,13 @@
 
       ncstat = nf90_def_dim(nc_file_id, 'src_grid_size', itmp1, 
      &                      nc_srcgrdsize_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                 'error defining source grid size')) return
 
       ncstat = nf90_def_dim(nc_file_id, 'dst_grid_size', itmp2, 
      &                      nc_dstgrdsize_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &            'error defining destination grid size')) return
 
       !***
       !*** define grid corner dimension
@@ -364,11 +416,13 @@
 
       ncstat = nf90_def_dim(nc_file_id, 'src_grid_corners', 
      &                      itmp1, nc_srcgrdcorn_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error defining num corners on source grid')) return
 
       ncstat = nf90_def_dim(nc_file_id, 'dst_grid_corners', 
      &                      itmp2, nc_dstgrdcorn_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &     'error defining num corners on destination grid')) return
 
       !***
       !*** define grid rank dimension
@@ -384,11 +438,13 @@
 
       ncstat = nf90_def_dim(nc_file_id, 'src_grid_rank', 
      &                      itmp1, nc_srcgrdrank_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                    'error defining source grid rank')) return
 
       ncstat = nf90_def_dim(nc_file_id, 'dst_grid_rank', 
      &                      itmp2, nc_dstgrdrank_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &               'error defining destination grid rank')) return
 
       !***
       !*** define map size dimensions
@@ -402,11 +458,13 @@
 
       ncstat = nf90_def_dim(nc_file_id, 'num_links', 
      &                      itmp1, nc_numlinks_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                           'error defining remap size')) return
 
       ncstat = nf90_def_dim(nc_file_id, 'num_wgts', 
      &                      num_wts, nc_numwgts_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                    'error defining number of weights')) return
 
       !***
       !*** define grid dimensions
@@ -414,11 +472,13 @@
 
       ncstat = nf90_def_var(nc_file_id, 'src_grid_dims', NF90_INT,
      &                      nc_srcgrdrank_id, nc_srcgrddims_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error defining source grid dims')) return
 
       ncstat = nf90_def_var(nc_file_id, 'dst_grid_dims', NF90_INT,
      &                      nc_dstgrdrank_id, nc_dstgrddims_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error defining destination grid dims')) return
 
 !-----------------------------------------------------------------------
 !
@@ -433,12 +493,14 @@
       ncstat = nf90_def_var(nc_file_id, 'src_grid_center_lat', 
      &                      NF90_DOUBLE, nc_srcgrdsize_id, 
      &                      nc_srcgrdcntrlat_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error defining source grid center lat')) return
 
       ncstat = nf90_def_var(nc_file_id, 'dst_grid_center_lat', 
      &                      NF90_DOUBLE, nc_dstgrdsize_id, 
      &                      nc_dstgrdcntrlat_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error defining destination grid center lat')) return
 
       !***
       !*** define grid center longitude array
@@ -447,12 +509,14 @@
       ncstat = nf90_def_var(nc_file_id, 'src_grid_center_lon', 
      &                      NF90_DOUBLE, nc_srcgrdsize_id, 
      &                      nc_srcgrdcntrlon_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error defining source grid center lon')) return
 
       ncstat = nf90_def_var(nc_file_id, 'dst_grid_center_lon', 
      &                      NF90_DOUBLE, nc_dstgrdsize_id, 
      &                      nc_dstgrdcntrlon_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error defining destination grid center lon')) return
 
       !***
       !*** define grid corner lat/lon arrays
@@ -464,12 +528,14 @@
       ncstat = nf90_def_var(nc_file_id, 'src_grid_corner_lat', 
      &                      NF90_DOUBLE, nc_dims2_id, 
      &                      nc_srcgrdcrnrlat_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error defining source grid corner lats')) return
 
       ncstat = nf90_def_var(nc_file_id, 'src_grid_corner_lon', 
      &                      NF90_DOUBLE, nc_dims2_id, 
      &                      nc_srcgrdcrnrlon_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error defining source grid corner lons')) return
 
       nc_dims2_id(1) = nc_dstgrdcorn_id
       nc_dims2_id(2) = nc_dstgrdsize_id
@@ -477,12 +543,14 @@
       ncstat = nf90_def_var(nc_file_id, 'dst_grid_corner_lat', 
      &                      NF90_DOUBLE, nc_dims2_id, 
      &                      nc_dstgrdcrnrlat_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error defining destination grid corner lats')) return
 
       ncstat = nf90_def_var(nc_file_id, 'dst_grid_corner_lon', 
      &                      NF90_DOUBLE, nc_dims2_id, 
      &                      nc_dstgrdcrnrlon_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error defining destination grid corner lons')) return
 
       !***
       !*** define units for all coordinate arrays
@@ -498,35 +566,43 @@
 
       ncstat = nf90_put_att(nc_file_id, nc_srcgrdcntrlat_id, 
      &                      'units', grid1_ctmp)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error writing source grid units')) return
 
       ncstat = nf90_put_att(nc_file_id, nc_dstgrdcntrlat_id, 
      &                      'units', grid2_ctmp)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error writing destination grid units')) return
 
       ncstat = nf90_put_att(nc_file_id, nc_srcgrdcntrlon_id, 
      &                      'units', grid1_ctmp)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error writing source grid units')) return
 
       ncstat = nf90_put_att(nc_file_id, nc_dstgrdcntrlon_id, 
      &                      'units', grid2_ctmp)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error writing destination grid units')) return
 
       ncstat = nf90_put_att(nc_file_id, nc_srcgrdcrnrlat_id, 
      &                      'units', grid1_ctmp)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error writing source grid units')) return
 
       ncstat = nf90_put_att(nc_file_id, nc_srcgrdcrnrlon_id, 
      &                      'units', grid1_ctmp)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error writing source grid units')) return
 
       ncstat = nf90_put_att(nc_file_id, nc_dstgrdcrnrlat_id, 
      &                      'units', grid2_ctmp)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error writing destination grid units')) return
 
       ncstat = nf90_put_att(nc_file_id, nc_dstgrdcrnrlon_id, 
      &                      'units', grid2_ctmp)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error writing destination grid units')) return
 
       !***
       !*** define grid mask
@@ -534,19 +610,23 @@
 
       ncstat = nf90_def_var(nc_file_id, 'src_grid_imask', NF90_INT,
      &                      nc_srcgrdsize_id, nc_srcgrdimask_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error defining source grid mask')) return
 
       ncstat = nf90_put_att(nc_file_id, nc_srcgrdimask_id, 
      &                      'units', 'unitless')
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error writing source grid mask units')) return
 
       ncstat = nf90_def_var(nc_file_id, 'dst_grid_imask', NF90_INT,
      &                      nc_dstgrdsize_id, nc_dstgrdimask_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error defining destination grid mask')) return
 
       ncstat = nf90_put_att(nc_file_id, nc_dstgrdimask_id, 
      &                      'units', 'unitless')
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error writing destination grid mask units')) return
 
       !***
       !*** define grid area arrays
@@ -555,20 +635,24 @@
       ncstat = nf90_def_var(nc_file_id, 'src_grid_area', 
      &                      NF90_DOUBLE, nc_srcgrdsize_id, 
      &                      nc_srcgrdarea_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error defining source grid area')) return
 
       ncstat = nf90_put_att(nc_file_id, nc_srcgrdarea_id, 
      &                      'units', 'square radians')
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error writing source area units')) return
 
       ncstat = nf90_def_var(nc_file_id, 'dst_grid_area', 
      &                      NF90_DOUBLE, nc_dstgrdsize_id, 
      &                      nc_dstgrdarea_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error defining destination grid area')) return
 
       ncstat = nf90_put_att(nc_file_id, nc_dstgrdarea_id, 
      &                      'units', 'square radians')
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error writing destination area units')) return
 
       !***
       !*** define grid fraction arrays
@@ -577,20 +661,24 @@
       ncstat = nf90_def_var(nc_file_id, 'src_grid_frac', 
      &                      NF90_DOUBLE, nc_srcgrdsize_id, 
      &                      nc_srcgrdfrac_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error defining source grid fraction')) return
 
       ncstat = nf90_put_att(nc_file_id, nc_srcgrdfrac_id, 
      &                      'units', 'unitless')
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error writing source fraction units')) return
 
       ncstat = nf90_def_var(nc_file_id, 'dst_grid_frac', 
      &                      NF90_DOUBLE, nc_dstgrdsize_id, 
      &                      nc_dstgrdfrac_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error defining destination fraction')) return
 
       ncstat = nf90_put_att(nc_file_id, nc_dstgrdfrac_id, 
      &                      'units', 'unitless')
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error writing destination frac units')) return
 
       !***
       !*** define mapping arrays
@@ -599,12 +687,14 @@
       ncstat = nf90_def_var(nc_file_id, 'src_address', 
      &                      NF90_INT, nc_numlinks_id, 
      &                      nc_srcadd_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error defining source addresses')) return
 
       ncstat = nf90_def_var(nc_file_id, 'dst_address', 
      &                      NF90_INT, nc_numlinks_id, 
      &                      nc_dstadd_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error defining destination addresses')) return
 
       nc_dims2_id(1) = nc_numwgts_id
       nc_dims2_id(2) = nc_numlinks_id
@@ -612,14 +702,16 @@
       ncstat = nf90_def_var(nc_file_id, 'remap_matrix', 
      &                      NF90_DOUBLE, nc_dims2_id, 
      &                      nc_rmpmatrix_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error defining remapping weights')) return
 
       !***
       !*** end definition stage
       !***
 
       ncstat = nf90_enddef(nc_file_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                         'error ending definition phase')) return
 
 !-----------------------------------------------------------------------
 !
@@ -695,16 +787,20 @@
       endif
 
       ncstat = nf90_put_var(nc_file_id, itmp1, grid1_dims)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error writing source grid dims')) return
 
       ncstat = nf90_put_var(nc_file_id, itmp2, grid2_dims)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error writing destination grid dims')) return
 
       ncstat = nf90_put_var(nc_file_id, nc_srcgrdimask_id, src_mask_int)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error writing source grid mask')) return
 
       ncstat = nf90_put_var(nc_file_id, nc_dstgrdimask_id, dst_mask_int)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error writing destination grid mask')) return
 
       deallocate(src_mask_int, dst_mask_int)
 
@@ -721,16 +817,20 @@
       endif
 
       ncstat = nf90_put_var(nc_file_id, itmp1, grid1_center_lat)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error writing source grid center lats')) return
 
       ncstat = nf90_put_var(nc_file_id, itmp2, grid1_center_lon)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error writing source grid center lons')) return
 
       ncstat = nf90_put_var(nc_file_id, itmp3, grid1_corner_lat)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error writing source grid corner lats')) return
 
       ncstat = nf90_put_var(nc_file_id, itmp4, grid1_corner_lon)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error writing source grid corner lons')) return
 
       if (direction == 1) then
         itmp1 = nc_dstgrdcntrlat_id
@@ -745,16 +845,20 @@
       endif
 
       ncstat = nf90_put_var(nc_file_id, itmp1, grid2_center_lat)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error writing destination grid center lats')) return
 
       ncstat = nf90_put_var(nc_file_id, itmp2, grid2_center_lon)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error writing destination grid center lons')) return
 
       ncstat = nf90_put_var(nc_file_id, itmp3, grid2_corner_lat)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error writing destination grid corner lats')) return
 
       ncstat = nf90_put_var(nc_file_id, itmp4, grid2_corner_lon)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error writing destination grid corner lons')) return
 
       if (direction == 1) then
         itmp1 = nc_srcgrdarea_id
@@ -773,47 +877,58 @@
       else
         ncstat = nf90_put_var(nc_file_id, itmp1, grid1_area)
       endif
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error writing grid1 area')) return
 
       ncstat = nf90_put_var(nc_file_id, itmp2, grid1_frac)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error writing grid1 frac')) return
 
       if (luse_grid2_area) then
         ncstat = nf90_put_var(nc_file_id, itmp3, grid2_area_in)
       else
         ncstat = nf90_put_var(nc_file_id, itmp3, grid2_area)
       endif
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error writing grid2 area')) return
 
       ncstat = nf90_put_var(nc_file_id, itmp4, grid2_frac)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error writing grid2 frac')) return
 
       if (direction == 1) then
         ncstat = nf90_put_var(nc_file_id, nc_srcadd_id, 
      &                        grid1_add_map1)
-        call netcdf_error_handler(ncstat)
+        if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &           'error writing source addresses')) return
 
         ncstat = nf90_put_var(nc_file_id, nc_dstadd_id, 
      &                        grid2_add_map1)
-        call netcdf_error_handler(ncstat)
+        if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &           'error writing destination addresses')) return
 
         ncstat = nf90_put_var(nc_file_id, nc_rmpmatrix_id, wts_map1)
-        call netcdf_error_handler(ncstat)
+        if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &           'error writing weights')) return
       else
         ncstat = nf90_put_var(nc_file_id, nc_srcadd_id, 
      &                        grid2_add_map2)
-        call netcdf_error_handler(ncstat)
+        if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &           'error writing source addresses')) return
 
         ncstat = nf90_put_var(nc_file_id, nc_dstadd_id, 
      &                          grid1_add_map2)
-        call netcdf_error_handler(ncstat)
+        if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &           'error writing destination addresses')) return
 
         ncstat = nf90_put_var(nc_file_id, nc_rmpmatrix_id, wts_map2)
-        call netcdf_error_handler(ncstat)
+        if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &           'error writing weights')) return
       endif
 
       ncstat = nf90_close(nc_file_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                           'error closing file')) return
 
 !-----------------------------------------------------------------------
 
@@ -821,7 +936,8 @@
 
 !***********************************************************************
 
-      subroutine write_remap_csm(map_name, interp_file, direction)
+      subroutine write_remap_csm(map_name, interp_file, direction,
+     &                           errorCode)
 
 !-----------------------------------------------------------------------
 !
@@ -842,6 +958,15 @@
       integer (SCRIP_i4), intent(in) ::
      &  direction              ! direction of map (1=grid1 to grid2
                                !                   2=grid2 to grid1)
+
+!-----------------------------------------------------------------------
+!
+!     output variables
+!
+!-----------------------------------------------------------------------
+
+      integer (SCRIP_i4), intent(out) ::
+     &   errorCode              ! returned error code
 
 !-----------------------------------------------------------------------
 !
@@ -871,41 +996,50 @@
       real (SCRIP_r8), dimension(:,:),allocatable ::
      &  wts2              ! write remaining weights in different array
 
+      character (15), parameter :: rtnName = 'write_remap_csm'
+
 !-----------------------------------------------------------------------
 !
 !     create netCDF file for mapping and define some global attributes
 !
 !-----------------------------------------------------------------------
 
+      errorCode = SCRIP_Success
+
       ncstat = nf90_create(interp_file, NF90_CLOBBER, nc_file_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                           'error opening file')) return
 
       !***
       !*** map name
       !***
       ncstat = nf90_put_att(nc_file_id, NF90_GLOBAL, 'title', map_name)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                           'error writing remap name')) return
 
       !***
       !*** normalization option
       !***
       ncstat = nf90_put_att(nc_file_id, NF90_GLOBAL, 'normalization',
      &                      normalize_opt)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error writing normalization option')) return
 
       !***
       !*** map method
       !***
       ncstat = nf90_put_att(nc_file_id, NF90_GLOBAL, 'map_method',
      &                      map_method)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error writing remap method')) return
 
       !***
       !*** history
       !***
       ncstat = nf90_put_att(nc_file_id, NF90_GLOBAL, 'history',
      &                      history)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                           'error writing history')) return
 
       !***
       !*** file convention
@@ -913,7 +1047,8 @@
       convention = 'NCAR-CSM'
       ncstat = nf90_put_att(nc_file_id, NF90_GLOBAL, 'conventions',
      &                      convention)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error writing output convention')) return
 
       !***
       !*** source and destination grid names
@@ -929,11 +1064,13 @@
 
       ncstat = nf90_put_att(nc_file_id, NF90_GLOBAL, trim(grid1_ctmp),
      &                      grid1_name)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                           'error writing grid1 name')) return
 
       ncstat = nf90_put_att(nc_file_id, NF90_GLOBAL, trim(grid2_ctmp),
      &                      grid2_name)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                           'error writing grid2 name')) return
 
 !-----------------------------------------------------------------------
 !
@@ -954,10 +1091,12 @@
       endif
 
       ncstat = nf90_def_dim(nc_file_id, 'n_a', itmp1, nc_srcgrdsize_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error defining source grid size')) return
 
       ncstat = nf90_def_dim(nc_file_id, 'n_b', itmp2, nc_dstgrdsize_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error defining destination grid size')) return
 
       !***
       !*** define grid corner dimension
@@ -972,10 +1111,12 @@
       endif
 
       ncstat = nf90_def_dim(nc_file_id, 'nv_a', itmp1, nc_srcgrdcorn_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &       'error defining number of corners on source grid')) return
 
       ncstat = nf90_def_dim(nc_file_id, 'nv_b', itmp2, nc_dstgrdcorn_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &  'error defining number of corners on destination grid')) return
 
       !***
       !*** define grid rank dimension
@@ -991,11 +1132,13 @@
 
       ncstat = nf90_def_dim(nc_file_id, 'src_grid_rank', 
      &                      itmp1, nc_srcgrdrank_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error defining source grid rank')) return
 
       ncstat = nf90_def_dim(nc_file_id, 'dst_grid_rank', 
      &                      itmp2, nc_dstgrdrank_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error defining destination grid rank')) return
 
       !***
       !*** define first two dims as if 2-d cartesian domain
@@ -1030,16 +1173,20 @@
       endif
 
       ncstat = nf90_def_dim(nc_file_id, 'ni_a', itmp1, nc_src_isize_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error defining source isize')) return
 
       ncstat = nf90_def_dim(nc_file_id, 'nj_a', itmp2, nc_src_jsize_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error defining source jsize')) return
 
       ncstat = nf90_def_dim(nc_file_id, 'ni_b', itmp3, nc_dst_isize_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error defining destination isize')) return
 
       ncstat = nf90_def_dim(nc_file_id, 'nj_b', itmp4, nc_dst_jsize_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error defining destination jsize')) return
 
       !***
       !*** define map size dimensions
@@ -1052,16 +1199,19 @@
       endif
 
       ncstat = nf90_def_dim(nc_file_id, 'n_s', itmp1, nc_numlinks_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error defining remap size')) return
 
       ncstat = nf90_def_dim(nc_file_id, 'num_wgts', 
      &                     num_wts, nc_numwgts_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error defining number of weights')) return
 
       if (num_wts > 1) then
         ncstat = nf90_def_dim(nc_file_id, 'num_wgts1', 
      &                       num_wts-1, nc_numwgts1_id)
-        call netcdf_error_handler(ncstat)
+        if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &           'error defining number of weights1')) return
       endif
 
       !***
@@ -1070,11 +1220,13 @@
 
       ncstat = nf90_def_var(nc_file_id, 'src_grid_dims', NF90_INT,
      &                      nc_srcgrdrank_id, nc_srcgrddims_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error defining source grid dims')) return
 
       ncstat = nf90_def_var(nc_file_id, 'dst_grid_dims', NF90_INT,
      &                      nc_dstgrdrank_id, nc_dstgrddims_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error defining destination grid dims')) return
 
 !-----------------------------------------------------------------------
 !
@@ -1089,12 +1241,14 @@
       ncstat = nf90_def_var(nc_file_id, 'yc_a',
      &                      NF90_DOUBLE, nc_srcgrdsize_id, 
      &                      nc_srcgrdcntrlat_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error defining source grid center lats')) return
 
       ncstat = nf90_def_var(nc_file_id, 'yc_b', 
      &                      NF90_DOUBLE, nc_dstgrdsize_id, 
      &                      nc_dstgrdcntrlat_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error defining destination grid center lats')) return
 
       !***
       !*** define grid center longitude array
@@ -1103,12 +1257,14 @@
       ncstat = nf90_def_var(nc_file_id, 'xc_a', 
      &                      NF90_DOUBLE, nc_srcgrdsize_id, 
      &                      nc_srcgrdcntrlon_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error defining source grid center lons')) return
 
       ncstat = nf90_def_var(nc_file_id, 'xc_b', 
      &                      NF90_DOUBLE, nc_dstgrdsize_id, 
      &                      nc_dstgrdcntrlon_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error defining destination grid center lons')) return
 
       !***
       !*** define grid corner lat/lon arrays
@@ -1120,12 +1276,14 @@
       ncstat = nf90_def_var(nc_file_id, 'yv_a', 
      &                      NF90_DOUBLE, nc_dims2_id, 
      &                      nc_srcgrdcrnrlat_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error defining source grid corner lats')) return
 
       ncstat = nf90_def_var(nc_file_id, 'xv_a', 
      &                      NF90_DOUBLE, nc_dims2_id, 
      &                      nc_srcgrdcrnrlon_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error defining source grid corner lons')) return
 
       nc_dims2_id(1) = nc_dstgrdcorn_id
       nc_dims2_id(2) = nc_dstgrdsize_id
@@ -1133,12 +1291,14 @@
       ncstat = nf90_def_var(nc_file_id, 'yv_b', 
      &                      NF90_DOUBLE, nc_dims2_id, 
      &                      nc_dstgrdcrnrlat_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error defining destination grid corner lats')) return
 
       ncstat = nf90_def_var(nc_file_id, 'xv_b', 
      &                      NF90_DOUBLE, nc_dims2_id, 
      &                      nc_dstgrdcrnrlon_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error defining destination grid corner lons')) return
 
       !***
       !*** CSM wants all in degrees
@@ -1157,35 +1317,43 @@
 
       ncstat = nf90_put_att(nc_file_id, nc_srcgrdcntrlat_id, 
      &                      'units', grid1_ctmp)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error writing grid units')) return
 
       ncstat = nf90_put_att(nc_file_id, nc_dstgrdcntrlat_id, 
      &                      'units', grid2_ctmp)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error writing grid units')) return
 
       ncstat = nf90_put_att(nc_file_id, nc_srcgrdcntrlon_id, 
      &                      'units', grid1_ctmp)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error writing grid units')) return
 
       ncstat = nf90_put_att(nc_file_id, nc_dstgrdcntrlon_id, 
      &                      'units', grid2_ctmp)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error writing grid units')) return
 
       ncstat = nf90_put_att(nc_file_id, nc_srcgrdcrnrlat_id, 
      &                      'units', grid1_ctmp)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error writing grid units')) return
 
       ncstat = nf90_put_att(nc_file_id, nc_srcgrdcrnrlon_id, 
      &                      'units', grid1_ctmp)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error writing grid units')) return
 
       ncstat = nf90_put_att(nc_file_id, nc_dstgrdcrnrlat_id, 
      &                      'units', grid2_ctmp)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error writing grid units')) return
 
       ncstat = nf90_put_att(nc_file_id, nc_dstgrdcrnrlon_id, 
      &                      'units', grid2_ctmp)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error writing grid units')) return
 
       !***
       !*** define grid mask
@@ -1193,19 +1361,23 @@
 
       ncstat = nf90_def_var(nc_file_id, 'mask_a', NF90_INT,
      &                      nc_srcgrdsize_id, nc_srcgrdimask_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error defining source grid mask')) return
 
       ncstat = nf90_put_att(nc_file_id, nc_srcgrdimask_id, 
      &                      'units', 'unitless')
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error writing source mask units')) return
 
       ncstat = nf90_def_var(nc_file_id, 'mask_b', NF90_INT,
      &                      nc_dstgrdsize_id, nc_dstgrdimask_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error defining destination grid mask')) return
 
       ncstat = nf90_put_att(nc_file_id, nc_dstgrdimask_id, 
      &                      'units', 'unitless')
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error writing destination mask units')) return
 
       !***
       !*** define grid area arrays
@@ -1214,20 +1386,24 @@
       ncstat = nf90_def_var(nc_file_id, 'area_a', 
      &                      NF90_DOUBLE, nc_srcgrdsize_id, 
      &                      nc_srcgrdarea_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error defining source grid area')) return
 
       ncstat = nf90_put_att(nc_file_id, nc_srcgrdarea_id, 
      &                      'units', 'square radians')
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error defining source area units')) return
 
       ncstat = nf90_def_var(nc_file_id, 'area_b', 
      &                      NF90_DOUBLE, nc_dstgrdsize_id, 
      &                      nc_dstgrdarea_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error defining destination grid area')) return
 
       ncstat = nf90_put_att(nc_file_id, nc_dstgrdarea_id, 
      &                      'units', 'square radians')
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error defining destination area units')) return
 
       !***
       !*** define grid fraction arrays
@@ -1236,20 +1412,24 @@
       ncstat = nf90_def_var(nc_file_id, 'frac_a', 
      &                      NF90_DOUBLE, nc_srcgrdsize_id, 
      &                      nc_srcgrdfrac_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error defining source grid frac')) return
 
       ncstat = nf90_put_att(nc_file_id, nc_srcgrdfrac_id, 
      &                      'units', 'unitless')
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error defining source frac units')) return
 
       ncstat = nf90_def_var(nc_file_id, 'frac_b', 
      &                      NF90_DOUBLE, nc_dstgrdsize_id, 
      &                      nc_dstgrdfrac_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error defining destination grid frac')) return
 
       ncstat = nf90_put_att(nc_file_id, nc_dstgrdfrac_id, 
      &                      'units', 'unitless')
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error defining destination frac units')) return
 
       !***
       !*** define mapping arrays
@@ -1258,17 +1438,20 @@
       ncstat = nf90_def_var(nc_file_id, 'col', 
      &                      NF90_INT, nc_numlinks_id, 
      &                      nc_srcadd_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error defining source addresses')) return
 
       ncstat = nf90_def_var(nc_file_id, 'row', 
      &                      NF90_INT, nc_numlinks_id, 
      &                      nc_dstadd_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error defining destination addresses')) return
 
       ncstat = nf90_def_var(nc_file_id, 'S', 
      &                      NF90_DOUBLE, nc_numlinks_id, 
      &                      nc_rmpmatrix_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                      'error defining weights')) return
 
       if (num_wts > 1) then
         nc_dims2_id(1) = nc_numwgts1_id
@@ -1277,7 +1460,8 @@
         ncstat = nf90_def_var(nc_file_id, 'S2', 
      &                     NF90_DOUBLE, nc_dims2_id, 
      &                     nc_rmpmatrix2_id)
-        call netcdf_error_handler(ncstat)
+        if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                     'error defining weights2')) return
       endif
 
       !***
@@ -1285,7 +1469,8 @@
       !***
 
       ncstat = nf90_enddef(nc_file_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                       'error ending definition phase')) return
 
 !-----------------------------------------------------------------------
 !
@@ -1362,18 +1547,22 @@
       endif
 
       ncstat = nf90_put_var(nc_file_id, itmp1, grid1_dims)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error writing grid1 dims')) return
 
       ncstat = nf90_put_var(nc_file_id, itmp2, grid2_dims)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error writing grid2 dims')) return
 
       ncstat = nf90_put_var(nc_file_id, nc_srcgrdimask_id, 
      &                      src_mask_int)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error writing source grid mask')) return
 
       ncstat = nf90_put_var(nc_file_id, nc_dstgrdimask_id,
      &                      dst_mask_int)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error writing destination grid mask')) return
 
       deallocate(src_mask_int, dst_mask_int)
 
@@ -1390,16 +1579,20 @@
       endif
 
       ncstat = nf90_put_var(nc_file_id, itmp1, grid1_center_lat)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error writing grid1 center lats')) return
 
       ncstat = nf90_put_var(nc_file_id, itmp2, grid1_center_lon)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error writing grid1 center lons')) return
 
       ncstat = nf90_put_var(nc_file_id, itmp3, grid1_corner_lat)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error writing grid1 corner lats')) return
 
       ncstat = nf90_put_var(nc_file_id, itmp4, grid1_corner_lon)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error writing grid1 corner lons')) return
 
       if (direction == 1) then
         itmp1 = nc_dstgrdcntrlat_id
@@ -1414,16 +1607,20 @@
       endif
 
       ncstat = nf90_put_var(nc_file_id, itmp1, grid2_center_lat)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error writing grid2 center lats')) return
 
       ncstat = nf90_put_var(nc_file_id, itmp2, grid2_center_lon)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error writing grid2 center lons')) return
 
       ncstat = nf90_put_var(nc_file_id, itmp3, grid2_corner_lat)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error writing grid2 corner lats')) return
 
       ncstat = nf90_put_var(nc_file_id, itmp4, grid2_corner_lon)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error writing grid2 corner lons')) return
 
       if (direction == 1) then
         itmp1 = nc_srcgrdarea_id
@@ -1442,34 +1639,41 @@
       else
         ncstat = nf90_put_var(nc_file_id, itmp1, grid1_area)
       endif
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error writing grid1 area')) return
 
       ncstat = nf90_put_var(nc_file_id, itmp2, grid1_frac)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error writing grid1 frac')) return
 
       if (luse_grid2_area) then
         ncstat = nf90_put_var(nc_file_id, itmp3, grid2_area)
       else
         ncstat = nf90_put_var(nc_file_id, itmp3, grid2_area)
       endif
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error writing grid2 area')) return
 
       ncstat = nf90_put_var(nc_file_id, itmp4, grid2_frac)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error writing grid2 frac')) return
 
       if (direction == 1) then
         ncstat = nf90_put_var(nc_file_id, nc_srcadd_id, 
      &                        grid1_add_map1)
-        call netcdf_error_handler(ncstat)
+        if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &           'error writing source addresses')) return
 
         ncstat = nf90_put_var(nc_file_id, nc_dstadd_id, 
      &                        grid2_add_map1)
-        call netcdf_error_handler(ncstat)
+        if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &           'error writing destination addresses')) return
 
         if (num_wts == 1) then
           ncstat = nf90_put_var(nc_file_id, nc_rmpmatrix_id, 
      &                               wts_map1(1,:))
-          call netcdf_error_handler(ncstat)
+          if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &             'error writing weights')) return
         else
           allocate(wts1(num_links_map1),wts2(num_wts-1,num_links_map1))
 
@@ -1477,24 +1681,29 @@
           wts2 = wts_map1(2:,:)
 
           ncstat = nf90_put_var(nc_file_id, nc_rmpmatrix_id, wts1)
-          call netcdf_error_handler(ncstat)
+          if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &             'error writing weights1')) return
           ncstat = nf90_put_var(nc_file_id, nc_rmpmatrix2_id, wts2)
-          call netcdf_error_handler(ncstat)
+          if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &             'error writing weights2')) return
           deallocate(wts1,wts2)
         endif
       else
         ncstat = nf90_put_var(nc_file_id, nc_srcadd_id, 
      &                        grid2_add_map2)
-        call netcdf_error_handler(ncstat)
+        if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &           'error writing source addresses')) return
 
         ncstat = nf90_put_var(nc_file_id, nc_dstadd_id, 
      &                        grid1_add_map2)
-        call netcdf_error_handler(ncstat)
+        if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &           'error writing destination addresses')) return
 
         if (num_wts == 1) then
           ncstat = nf90_put_var(nc_file_id, nc_rmpmatrix_id, 
      &                          wts_map2(1,:))
-          call netcdf_error_handler(ncstat)
+          if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &             'error writing weights')) return
         else
           allocate(wts1(num_links_map2),wts2(num_wts-1,num_links_map2))
 
@@ -1502,15 +1711,18 @@
           wts2 = wts_map2(2:,:)
 
           ncstat = nf90_put_var(nc_file_id, nc_rmpmatrix_id, wts1)
-          call netcdf_error_handler(ncstat)
+          if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &             'error writing weights1')) return
           ncstat = nf90_put_var(nc_file_id, nc_rmpmatrix2_id, wts2)
-          call netcdf_error_handler(ncstat)
+          if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &             'error writing weights2')) return
           deallocate(wts1,wts2)
         endif
       endif
 
       ncstat = nf90_close(nc_file_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &         'error closing file')) return
 
 !-----------------------------------------------------------------------
 
@@ -1553,7 +1765,6 @@
      &          num_links,          ! num of links for this mapping
      &          num_wts,            ! num of weights for this mapping
      &          add1_tmp, add2_tmp, ! temp for addresses during swap
-     &          nwgt,
      &          lvl, final_lvl,     ! level indexes for heap sort levels
      &          chk_lvl1, chk_lvl2, max_lvl
 
