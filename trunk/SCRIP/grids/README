@@ -5,6 +5,8 @@
       In addition, there are several source codes for creating
       netCDF files for use in SCRIP:
 
+      CreateLatLon.F90 - creates a simple lat/lon grid for SCRIP
+
       convertPOPT.f  - converts input grid files for the POP 
                        ocean model to SCRIP netCDF format
 
