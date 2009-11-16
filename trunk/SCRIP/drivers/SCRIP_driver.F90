@@ -82,6 +82,9 @@
       normalizeOpt, &! option for normalizing weights
       outputFormat   ! option for output conventions
 
+   character (12), parameter :: &
+      rtnName = 'SCRIP_driver'
+
 !-----------------------------------------------------------------------
 !
 !  local variables
@@ -102,11 +105,8 @@
 
    call SCRIP_CommInitMessageEnvironment
    call SCRIP_Initialize(errorCode)
-   if (SCRIP_errorCheck(errorCode,'error initializing SCRIP')) then
-      call SCRIP_errorPrint(errorCode, SCRIP_masterTask)
-      call SCRIP_CommExitMessageEnvironment
-      stop
-   endif
+   if (SCRIP_errorCheck(errorCode, rtnName, 'error initializing SCRIP')) &
+      call SCRIP_driverExit(errorCode)
 
 !-----------------------------------------------------------------------
 !
@@ -126,82 +126,98 @@
 !-----------------------------------------------------------------------
 
    call SCRIP_ConfigOpen(iunit, errorCode)
-   if (SCRIP_ErrorCheck(errorCode, 'error opening config file')) stop
+   if (SCRIP_ErrorCheck(errorCode, rtnName, &
+       'error opening config file')) call SCRIP_driverExit(errorCode)
 
    call SCRIP_ConfigRead(iunit, 'remapInputs',                         &
                          'gridFile1', gridFile1, 'unknown', errorCode, & 
                          outStringBefore= 'grid1 contained in file: ')
-   if (SCRIP_ErrorCheck(errorCode, 'error reading grid1 filename')) stop
+   if (SCRIP_ErrorCheck(errorCode, rtnName, &
+       'error reading grid1 filename')) call SCRIP_driverExit(errorCode)
 
    call SCRIP_ConfigRead(iunit, 'remapInputs',                         &
                          'gridFile2', gridFile2, 'unknown', errorCode, & 
                          outStringBefore= 'grid2 contained in file: ')
-   if (SCRIP_ErrorCheck(errorCode, 'error reading grid2 filename')) stop
+   if (SCRIP_ErrorCheck(errorCode, rtnName, &
+       'error reading grid2 filename')) call SCRIP_driverExit(errorCode)
 
    call SCRIP_ConfigRead(iunit, 'remapInputs', 'interpFile1',          &
                          interpFile1, 'unknown', errorCode,            & 
            outStringBefore= 'grid1 to grid2 regrid contained in file: ')
-   if (SCRIP_ErrorCheck(errorCode, 'error reading interp1 filename')) stop
+   if (SCRIP_ErrorCheck(errorCode, rtnName, &
+       'error reading interp1 filename')) call SCRIP_driverExit(errorCode)
 
    call SCRIP_ConfigRead(iunit, 'remapInputs', 'interpFile2',          &
                          interpFile2, 'unknown', errorCode,            & 
            outStringBefore= 'grid2 to grid1 regrid contained in file: ')
-   if (SCRIP_ErrorCheck(errorCode, 'error reading interp2 filename')) stop
+   if (SCRIP_ErrorCheck(errorCode, rtnName, &
+       'error reading interp2 filename')) call SCRIP_driverExit(errorCode)
 
    call SCRIP_ConfigRead(iunit, 'remapInputs',                       &
                          'mapName1', mapName1, 'unknown', errorCode, & 
                          outStringBefore= 'map1 will be named: ')
-   if (SCRIP_ErrorCheck(errorCode, 'error reading map1 name')) stop
+   if (SCRIP_ErrorCheck(errorCode, rtnName, &
+       'error reading map1 name')) call SCRIP_driverExit(errorCode)
 
    call SCRIP_ConfigRead(iunit, 'remapInputs',                       &
                          'mapName2', mapName2, 'unknown', errorCode, &
                          outStringBefore= 'map2 will be named: ')
-   if (SCRIP_ErrorCheck(errorCode, 'error reading map2 name')) stop
+   if (SCRIP_ErrorCheck(errorCode, rtnName, &
+       'error reading map2 name')) call SCRIP_driverExit(errorCode)
 
    call SCRIP_ConfigRead(iunit, 'remapInputs',                     &
                          'num_maps', num_maps, 1, errorCode, & 
                          outStringBefore= 'Computing ',            &
                          outStringAfter= ' remappings')
-   if (SCRIP_ErrorCheck(errorCode, 'error reading num_maps')) stop
+   if (SCRIP_ErrorCheck(errorCode, rtnName, &
+       'error reading num_maps')) call SCRIP_driverExit(errorCode)
 
    call SCRIP_ConfigRead(iunit, 'remapInputs', 'luse_grid1_area', &
                          luse_grid1_area, .false., errorCode,     & 
                          outStringBefore= 'Use grid1 area: ')
-   if (SCRIP_ErrorCheck(errorCode, 'error reading luse_grid1_area')) stop
+   if (SCRIP_ErrorCheck(errorCode, rtnName, &
+       'error reading luse_grid1_area')) call SCRIP_driverExit(errorCode)
 
    call SCRIP_ConfigRead(iunit, 'remapInputs', 'luse_grid2_area', &
                          luse_grid2_area, .false., errorCode,     & 
                          outStringBefore= 'Use grid2 area: ')
-   if (SCRIP_ErrorCheck(errorCode, 'error reading luse_grid2_area')) stop
+   if (SCRIP_ErrorCheck(errorCode, rtnName, &
+       'error reading luse_grid2_area')) call SCRIP_driverExit(errorCode)
 
    call SCRIP_ConfigRead(iunit, 'remapInputs', 'mapMethod',    &
                          mapMethod, 'conservative', errorCode, & 
                          outStringBefore= 'Map method is ')
-   if (SCRIP_ErrorCheck(errorCode, 'error reading mapMethod')) stop
+   if (SCRIP_ErrorCheck(errorCode, rtnName, &
+       'error reading mapMethod')) call SCRIP_driverExit(errorCode)
 
    call SCRIP_ConfigRead(iunit, 'remapInputs', 'normalizeOpt', &
                          normalizeOpt, 'fracArea', errorCode, & 
                          outStringBefore= 'Normalization option is: ')
-   if (SCRIP_ErrorCheck(errorCode, 'error reading normalizeOpt')) stop
+   if (SCRIP_ErrorCheck(errorCode, rtnName, &
+       'error reading normalizeOpt')) call SCRIP_driverExit(errorCode)
 
    call SCRIP_ConfigRead(iunit, 'remapInputs', 'outputFormat', &
                          outputFormat, 'scrip', errorCode,     & 
                          outStringBefore= 'Output format is: ')
-   if (SCRIP_ErrorCheck(errorCode, 'error reading outputFormat')) stop
+   if (SCRIP_ErrorCheck(errorCode, rtnName, &
+       'error reading outputFormat')) call SCRIP_driverExit(errorCode)
 
    call SCRIP_ConfigRead(iunit, 'remapInputs', 'restrict_type', &
                          restrict_type, 'latitude', errorCode,  & 
                          outStringBefore= 'Restricting search by: ')
-   if (SCRIP_ErrorCheck(errorCode, 'error reading restrict_type')) stop
+   if (SCRIP_ErrorCheck(errorCode, rtnName, &
+       'error reading restrict_type')) call SCRIP_driverExit(errorCode)
 
    call SCRIP_ConfigRead(iunit, 'remapInputs', 'num_srch_bins', &
                          num_srch_bins, 900, errorCode,         & 
                          outStringBefore= 'Using ',                 &
                          outStringAfter = 'search bins')
-   if (SCRIP_ErrorCheck(errorCode, 'error reading num_srch_bins')) stop
+   if (SCRIP_ErrorCheck(errorCode, rtnName, &
+       'error reading num_srch_bins')) call SCRIP_driverExit(errorCode)
 
    call SCRIP_ConfigClose(iunit, errorCode)
-   if (SCRIP_ErrorCheck(errorCode, 'error closing config file')) stop
+   if (SCRIP_ErrorCheck(errorCode, rtnName, &
+       'error closing config file')) call SCRIP_driverExit(errorCode)
 
    select case(mapMethod)
    case ('conservative')
@@ -220,7 +236,8 @@
       map_type = map_type_particle
       luse_grid_centers = .false.
    case default
-      stop 'unknown mapping method'
+      call SCRIP_ErrorSet(errorCode, rtnName, 'unknown mapping method')
+      call SCRIP_driverExit(errorCode)
    end select
 
    select case(trim(normalizeOpt))
@@ -231,7 +248,8 @@
    case ('destArea')
       norm_opt = norm_opt_dstarea
    case default
-      stop 'unknown normalization option'
+      call SCRIP_ErrorSet(errorCode, rtnName, 'unknown normalization option')
+      call SCRIP_driverExit(errorCode)
    end select
 
 !-----------------------------------------------------------------------
@@ -242,13 +260,8 @@
 
    call grid_init(gridFile1, gridFile2, errorCode)
 
-   if (errorCode /= SCRIP_Success) then
-      call SCRIP_ErrorSet(errorCode, &
-                          'SCRIP_driver: Error initializing grids')
-      call SCRIP_errorPrint(errorCode, SCRIP_masterTask)
-      call SCRIP_CommExitMessageEnvironment
-      stop
-   endif
+   if (SCRIP_ErrorCheck(errorCode, rtnName, 'Error initializing grids')) &
+      call SCRIP_driverExit(errorCode)
 
    write(SCRIP_stdout, *) 'Computing remappings between: ',grid1_name
    write(SCRIP_stdout, *) '                         and  ',grid2_name
@@ -280,7 +293,8 @@
    case(map_type_particle)
       call SCRIP_RemapParticleCreate(errorCode)
    case default
-      stop 'Invalid Map Type'
+      call SCRIP_ErrorSet(errorCode, rtnName, 'Invalid Map Type')
+      call SCRIP_driverExit(errorCode)
    end select
 
 !-----------------------------------------------------------------------
@@ -297,7 +311,9 @@
    endif
 
    call write_remap(mapName1, mapName2, & 
-                    interpFile1, interpFile2, outputFormat)
+                    interpFile1, interpFile2, outputFormat, errorCode)
+   if (SCRIP_ErrorCheck(errorCode, rtnName, 'error in write_remap')) &
+       call SCRIP_driverExit(errorCode)
 
 !-----------------------------------------------------------------------
 !
@@ -305,12 +321,56 @@
 !
 !-----------------------------------------------------------------------
 
-   call SCRIP_errorPrint(errorCode, SCRIP_masterTask)
-   call SCRIP_CommExitMessageEnvironment
+   call SCRIP_driverExit(errorCode)
 
 !-----------------------------------------------------------------------
 !EOC
 
  end program SCRIP_driver
+
+!***********************************************************************
+!BOP
+! !IROUTINE: SCRIP_driverExit
+! !INTERFACE:
+
+   subroutine SCRIP_driverExit(errorCode)
+
+! !DESCRIPTION:
+!  This routine exits the SCRIP driver program. It first calls the 
+!  SCRIP error print function to print any errors encountered and then
+!  exits the message environment before stopping.
+!
+! !REVISION HISTORY:
+!  SVN:$Id: $
+
+! !USES:
+
+   use SCRIP_KindsMod
+   use SCRIP_CommMod
+   use SCRIP_ErrorMod
+
+! !INPUT PARAMETERS:
+
+   integer (SCRIP_i4), intent(in) :: &
+      errorCode        ! error flag to detect any errors encountered
+
+!EOP
+!BOC
+!-----------------------------------------------------------------------
+!
+!  call SCRIP error print function to output any logged errors that
+!  were encountered during execution.  Then stop.
+!
+!-----------------------------------------------------------------------
+
+   call SCRIP_errorPrint(errorCode, SCRIP_masterTask)
+   call SCRIP_CommExitMessageEnvironment
+
+   stop
+
+!-----------------------------------------------------------------------
+!EOC
+
+   end subroutine SCRIP_driverExit
 
 !|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
