@@ -1549,11 +1549,6 @@
          tmpwt2 = weights(1)
          if (lrevers) tmpwt2 = -tmpwt2
 
-         if (abs(tmpwt1) .gt. tiny) then
-            write(19,*) cell_add, corner, tmpnseg,tmpwt1,tmpwt2,
-     &           abs(tmpwt2-tmpwt1)/abs(tmpwt2)
-         endif
-
          !***
          !*** end of segment
          !***
