@@ -48,26 +48,7 @@
 
       implicit none
 
-!-----------------------------------------------------------------------
-!
-!     module variables
-!
-!-----------------------------------------------------------------------
-
-      integer (SCRIP_i4), save :: 
-     &        num_srch_cells ! num cells in restricted search arrays
-
-      integer (SCRIP_i4), dimension(:), allocatable, save :: 
-     &        srch_add       ! global address of cells in srch arrays
-
-      real (SCRIP_r8), parameter :: 
-     &     north_thresh = 1.45_SCRIP_r8, ! threshold for coord transf.
-     &     south_thresh =-2.00_SCRIP_r8  ! threshold for coord transf.
-
-      real (SCRIP_r8), dimension(:,:), allocatable, save ::
-     &     srch_corner_lat,  ! lat of each corner of srch cells
-     &     srch_corner_lon   ! lon of each corner of srch cells
-
+     
 !***********************************************************************
 
       contains
@@ -91,56 +72,38 @@
 !-----------------------------------------------------------------------
 
       integer (SCRIP_i4), parameter :: 
-     &        max_subseg = 10000 ! max number of subsegments per segment
-                                 ! to prevent infinite loop
+     &     phi_or_theta = 1      ! integrate w.r.t. phi (1) or theta (2)
+      
 
       integer (SCRIP_i4) :: 
-     &        grid1_add,  ! current linear address for grid1 cell
-     &        grid2_add,  ! current linear address for grid2 cell
-     &        min_add,    ! addresses for restricting search of
-     &        max_add,    !   destination grid
-     &        n, nwgt,    ! generic counters
-     &        corner,     ! corner of cell that segment starts from
-     &        next_corn,  ! corner of cell that segment ends on
-     &        num_subseg  ! number of subsegments 
-
-      logical (SCRIP_logical) :: 
-     &        lcoinc,  ! flag for coincident segments
-     &        lrevers, ! flag for reversing direction of segment
-     &        lbegin   ! flag for first integration of a segment
-
-      logical (SCRIP_logical), dimension(:), allocatable ::
-     &        srch_mask   ! mask for restricting searches
+     &     i, inext,            !
+     &     n, nwgt, 
+     &     grid1_add,           ! Current linear address for grid1 cell
+     &     grid2_add,           ! Current linear address for grid2 cell
+     &     grid_num,            ! Index (1,2) of grid that we are processing
+     &     opp_grid_num,        ! Index of opposite grid (2,1)
+     &     maxrd_cell,          ! cell with the max. relative difference in area
+     &     progint              ! Intervals at which progress is to be printed
 
       real (SCRIP_r8) ::
-     &     intrsct_lat, intrsct_lon,       ! lat/lon of next intersect
-     &     beglat, endlat, beglon, endlon, ! endpoints of current seg.
-     &     norm_factor                     ! factor for normalizing wts
+     &     norm_factor          ! factor for normalizing wts
 
-      real (SCRIP_r8), dimension(:), allocatable ::
-     &       grid2_centroid_lat, grid2_centroid_lon, ! centroid coords
-     &       grid1_centroid_lat, grid1_centroid_lon  ! on each grid
+      real (SCRIP_r8), dimension(6) :: 
+     &     weights              ! local wgt array
 
-      real (SCRIP_r8), dimension(2) :: begseg ! begin lat/lon for
-                                                   ! full segment
+      real (SCRIP_r8) ::
+     &     beglat, beglon,
+     &     endlat, endlon,
+     &     area,                ! Area of cell
+     &     reldiff,             ! Relative difference in computed and true area
+     &     ave_reldiff,         ! Average rel. diff. in areas
+     &     max_reldiff,         ! Maximum rel. diff in areas
+     &     maxrd_area,          ! Computed area for cell with max. rel. diff.
+     &     maxrd_true           ! True area for cell with max. rel. diff.
 
-      real (SCRIP_r8), dimension(6) :: weights ! local wgt array
+      integer (SCRIP_i4) ::
+     &     nthreads = 1
 
-!-----------------------------------------------------------------------
-!
-!     initialize centroid arrays
-!
-!-----------------------------------------------------------------------
-
-      allocate( grid1_centroid_lat(grid1_size),
-     &          grid1_centroid_lon(grid1_size),
-     &          grid2_centroid_lat(grid2_size),
-     &          grid2_centroid_lon(grid2_size))
-
-      grid1_centroid_lat = zero
-      grid1_centroid_lon = zero
-      grid2_centroid_lat = zero
-      grid2_centroid_lon = zero
 
 !-----------------------------------------------------------------------
 !
@@ -148,225 +111,30 @@
 !
 !-----------------------------------------------------------------------
 
-      allocate(srch_mask(grid2_size))
-
       print *,'grid1 sweep'
+
+      if (grid1_size > 1000000) then
+         progint = 100000
+      else
+         progint = 10000
+      endif
+
+      grid_num = 1
+      opp_grid_num = 2
+
+      call timer_start(1)
+
       do grid1_add = 1,grid1_size
 
-        !***
-        !*** restrict searches first using search bins
-        !***
+         if (mod(grid1_add,progint) .eq. 0) then
+            print *, grid1_add, ' cells processed ...'
+         endif
 
-        call timer_start(1)
-        min_add = grid2_size
-        max_add = 1
-        do n=1,num_srch_bins
-          if (grid1_add >= bin_addr1(1,n) .and.
-     &        grid1_add <= bin_addr1(2,n)) then
-            min_add = min(min_add, bin_addr2(1,n))
-            max_add = max(max_add, bin_addr2(2,n))
-          endif
-        end do
+         call cell_integrate(grid1_add, grid_num, phi_or_theta)
 
-        !***
-        !*** further restrict searches using bounding boxes
-        !***
+      end do                    ! do grid1_add=...
 
-        num_srch_cells = 0
-        do grid2_add = min_add,max_add
-          srch_mask(grid2_add) = (grid2_bound_box(1,grid2_add) <= 
-     &                            grid1_bound_box(2,grid1_add)) .and.
-     &                           (grid2_bound_box(2,grid2_add) >= 
-     &                            grid1_bound_box(1,grid1_add)) .and.
-     &                           (grid2_bound_box(3,grid2_add) <= 
-     &                            grid1_bound_box(4,grid1_add)) .and.
-     &                           (grid2_bound_box(4,grid2_add) >= 
-     &                            grid1_bound_box(3,grid1_add))
-
-          if (srch_mask(grid2_add)) num_srch_cells = num_srch_cells+1
-        end do
-
-        !***
-        !*** create search arrays
-        !***
-
-        allocate(srch_add(num_srch_cells),
-     &           srch_corner_lat(grid2_corners,num_srch_cells),
-     &           srch_corner_lon(grid2_corners,num_srch_cells))
-
-        n = 0
-        gather1: do grid2_add = min_add,max_add
-          if (srch_mask(grid2_add)) then
-            n = n+1
-            srch_add(n) = grid2_add
-            srch_corner_lat(:,n) = grid2_corner_lat(:,grid2_add)
-            srch_corner_lon(:,n) = grid2_corner_lon(:,grid2_add)
-          endif
-        end do gather1
-        call timer_stop(1)
-
-        !***
-        !*** integrate around this cell
-        !***
-
-        do corner = 1,grid1_corners
-          next_corn = mod(corner,grid1_corners) + 1
-
-          !***
-          !*** define endpoints of the current segment
-          !***
-
-          beglat = grid1_corner_lat(corner,grid1_add)
-          beglon = grid1_corner_lon(corner,grid1_add)
-          endlat = grid1_corner_lat(next_corn,grid1_add)
-          endlon = grid1_corner_lon(next_corn,grid1_add)
-          lrevers = .false.
-
-          !***
-          !*** to ensure exact path taken during both
-          !*** sweeps, always integrate segments in the same 
-          !*** direction (SW to NE).
-          !***
-
-          if ((endlat < beglat) .or.
-     &        (endlat == beglat .and. endlon < beglon)) then 
-            beglat = grid1_corner_lat(next_corn,grid1_add)
-            beglon = grid1_corner_lon(next_corn,grid1_add)
-            endlat = grid1_corner_lat(corner,grid1_add)
-            endlon = grid1_corner_lon(corner,grid1_add)
-            lrevers = .true.
-          endif
-
-          begseg(1) = beglat
-          begseg(2) = beglon
-          lbegin = .true.
-          num_subseg = 0
-
-          !***
-          !*** if this is a constant-longitude segment, skip the rest 
-          !*** since the line integral contribution will be zero.
-          !***
-
-          if (endlon /= beglon) then
-
-          !***
-          !*** integrate along this segment, detecting intersections 
-          !*** and computing the line integral for each sub-segment
-          !***
-
-          do while (beglat /= endlat .or. beglon /= endlon)
-
-            !***
-            !*** prevent infinite loops if integration gets stuck
-            !*** near cell or threshold boundary
-            !***
-
-            num_subseg = num_subseg + 1
-            if (num_subseg > max_subseg) then
-              stop 'integration stalled: num_subseg exceeded limit'
-            endif
-
-            !***
-            !*** find next intersection of this segment with a grid
-            !*** line on grid 2.
-            !***
-
-            call timer_start(2)
-            call intersection(grid2_add,intrsct_lat,intrsct_lon,lcoinc,
-     &                        beglat, beglon, endlat, endlon, begseg, 
-     &                        lbegin, lrevers)
-            call timer_stop(2)
-            lbegin = .false.
-
-            !***
-            !*** compute line integral for this subsegment.
-            !***
-
-            call timer_start(3)
-            if (grid2_add /= 0) then
-              call line_integral(weights, num_wts,
-     &                         beglon, intrsct_lon, beglat, intrsct_lat,
-     &                         grid1_center_lat(grid1_add), 
-     &                         grid1_center_lon(grid1_add),
-     &                         grid2_center_lat(grid2_add), 
-     &                         grid2_center_lon(grid2_add))
-            else
-              call line_integral(weights, num_wts,
-     &                         beglon, intrsct_lon, beglat, intrsct_lat,
-     &                         grid1_center_lat(grid1_add), 
-     &                         grid1_center_lon(grid1_add),
-     &                         grid1_center_lat(grid1_add), 
-     &                         grid1_center_lon(grid1_add))
-            endif
-            call timer_stop(3)
-
-            !***
-            !*** if integrating in reverse order, change
-            !*** sign of weights
-            !***
-
-            if (lrevers) then
-              weights = -weights
-            endif
-
-            !***
-            !*** store the appropriate addresses and weights. 
-            !*** also add contributions to cell areas and centroids.
-            !***
-
-            !if (grid1_add == 119247) then
-            !  print *,grid1_add,grid2_add,corner,weights(1)
-            !  print *,grid1_corner_lat(:,grid1_add)
-            !  print *,grid1_corner_lon(:,grid1_add)
-            !  print *,grid2_corner_lat(:,grid2_add)
-            !  print *,grid2_corner_lon(:,grid2_add)
-            !  print *,beglat,beglon,intrsct_lat,intrsct_lon
-            !endif
-
-            if (grid2_add /= 0) then
-              if (grid1_mask(grid1_add)) then
-                call timer_start(4)
-                call store_link_cnsrv(grid1_add, grid2_add, weights)
-                call timer_stop(4)
-                grid1_frac(grid1_add) = grid1_frac(grid1_add) + 
-     &                                  weights(1)
-                grid2_frac(grid2_add) = grid2_frac(grid2_add) + 
-     &                                  weights(num_wts+1)
-              endif
-
-            endif
-
-            grid1_area(grid1_add) = grid1_area(grid1_add) + weights(1)
-            grid1_centroid_lat(grid1_add) = 
-     &      grid1_centroid_lat(grid1_add) + weights(2)
-            grid1_centroid_lon(grid1_add) = 
-     &      grid1_centroid_lon(grid1_add) + weights(3)
-
-            !***
-            !*** reset beglat and beglon for next subsegment.
-            !***
-
-            beglat = intrsct_lat
-            beglon = intrsct_lon
-          end do
-
-          endif
-
-          !***
-          !*** end of segment
-          !***
-
-        end do
-
-        !***
-        !*** finished with this cell: deallocate search array and
-        !*** start on next cell
-
-        deallocate(srch_add, srch_corner_lat, srch_corner_lon)
-
-      end do
-
-      deallocate(srch_mask)
+      call timer_stop(1)
 
 !-----------------------------------------------------------------------
 !
@@ -374,215 +142,30 @@
 !
 !-----------------------------------------------------------------------
 
-      allocate(srch_mask(grid1_size))
-
       print *,'grid2 sweep '
+
+      if (grid2_size > 1000000) then
+         progint = 100000
+      else
+         progint = 10000
+      endif
+
+      grid_num = 2
+      opp_grid_num = 1
+
+      call timer_start(2)
+
       do grid2_add = 1,grid2_size
 
-        !***
-        !*** restrict searches first using search bins
-        !***
+         if (mod(grid2_add,progint) .eq. 0) then
+            print *, grid2_add, ' cells processed ...'
+         endif
 
-        call timer_start(5)
-        min_add = grid1_size
-        max_add = 1
-        do n=1,num_srch_bins
-          if (grid2_add >= bin_addr2(1,n) .and.
-     &        grid2_add <= bin_addr2(2,n)) then
-            min_add = min(min_add, bin_addr1(1,n))
-            max_add = max(max_add, bin_addr1(2,n))
-          endif
-        end do
+         call cell_integrate(grid2_add, grid_num, phi_or_theta)
 
-        !***
-        !*** further restrict searches using bounding boxes
-        !***
+      end do                    ! do grid2_add=...
 
-        num_srch_cells = 0
-        do grid1_add = min_add, max_add
-          srch_mask(grid1_add) = (grid1_bound_box(1,grid1_add) <= 
-     &                            grid2_bound_box(2,grid2_add)) .and.
-     &                           (grid1_bound_box(2,grid1_add) >= 
-     &                            grid2_bound_box(1,grid2_add)) .and.
-     &                           (grid1_bound_box(3,grid1_add) <= 
-     &                            grid2_bound_box(4,grid2_add)) .and.
-     &                           (grid1_bound_box(4,grid1_add) >= 
-     &                            grid2_bound_box(3,grid2_add))
-
-          if (srch_mask(grid1_add)) num_srch_cells = num_srch_cells+1
-        end do
-
-        allocate(srch_add(num_srch_cells),
-     &           srch_corner_lat(grid1_corners,num_srch_cells),
-     &           srch_corner_lon(grid1_corners,num_srch_cells))
-
-        n = 0
-        gather2: do grid1_add = min_add,max_add
-          if (srch_mask(grid1_add)) then
-            n = n+1
-            srch_add(n) = grid1_add
-            srch_corner_lat(:,n) = grid1_corner_lat(:,grid1_add)
-            srch_corner_lon(:,n) = grid1_corner_lon(:,grid1_add)
-          endif
-        end do gather2
-        call timer_stop(5)
-
-        !***
-        !*** integrate around this cell
-        !***
-
-        do corner = 1,grid2_corners
-          next_corn = mod(corner,grid2_corners) + 1
-
-          beglat = grid2_corner_lat(corner,grid2_add)
-          beglon = grid2_corner_lon(corner,grid2_add)
-          endlat = grid2_corner_lat(next_corn,grid2_add)
-          endlon = grid2_corner_lon(next_corn,grid2_add)
-          lrevers = .false.
-
-          !***
-          !*** to ensure exact path taken during both
-          !*** sweeps, always integrate in the same direction
-          !***
-
-          if ((endlat < beglat) .or.
-     &        (endlat == beglat .and. endlon < beglon)) then 
-            beglat = grid2_corner_lat(next_corn,grid2_add)
-            beglon = grid2_corner_lon(next_corn,grid2_add)
-            endlat = grid2_corner_lat(corner,grid2_add)
-            endlon = grid2_corner_lon(corner,grid2_add)
-            lrevers = .true.
-          endif
-
-          begseg(1) = beglat
-          begseg(2) = beglon
-          lbegin = .true.
-
-          !***
-          !*** if this is a constant-longitude segment, skip the rest 
-          !*** since the line integral contribution will be zero.
-          !***
-
-          if (endlon /= beglon) then
-          num_subseg = 0
-
-          !***
-          !*** integrate along this segment, detecting intersections 
-          !*** and computing the line integral for each sub-segment
-          !***
-
-          do while (beglat /= endlat .or. beglon /= endlon)
-
-            !***
-            !*** prevent infinite loops if integration gets stuck
-            !*** near cell or threshold boundary
-            !***
-
-            num_subseg = num_subseg + 1
-            if (num_subseg > max_subseg) then
-              stop 'integration stalled: num_subseg exceeded limit'
-            endif
-
-            !***
-            !*** find next intersection of this segment with a line 
-            !*** on grid 2.
-            !***
-
-            call timer_start(6)
-            call intersection(grid1_add,intrsct_lat,intrsct_lon,lcoinc,
-     &                        beglat, beglon, endlat, endlon, begseg,
-     &                        lbegin, lrevers)
-            call timer_stop(6)
-            lbegin = .false.
-
-            !***
-            !*** compute line integral for this subsegment.
-            !***
-
-            call timer_start(7)
-            if (grid1_add /= 0) then
-              call line_integral(weights, num_wts,
-     &                         beglon, intrsct_lon, beglat, intrsct_lat,
-     &                         grid1_center_lat(grid1_add), 
-     &                         grid1_center_lon(grid1_add),
-     &                         grid2_center_lat(grid2_add), 
-     &                         grid2_center_lon(grid2_add))
-            else
-              call line_integral(weights, num_wts,
-     &                         beglon, intrsct_lon, beglat, intrsct_lat,
-     &                         grid2_center_lat(grid2_add), 
-     &                         grid2_center_lon(grid2_add),
-     &                         grid2_center_lat(grid2_add), 
-     &                         grid2_center_lon(grid2_add))
-            endif
-            call timer_stop(7)
-
-            if (lrevers) then
-              weights = -weights
-            endif
-
-            !***
-            !*** store the appropriate addresses and weights. 
-            !*** also add contributions to cell areas and centroids.
-            !*** if there is a coincidence, do not store weights
-            !*** because they have been captured in the previous loop.
-            !*** the grid1 mask is the master mask
-            !***
-
-            !if (grid1_add == 119247) then
-            !  print *,grid1_add,grid2_add,corner,weights(1)
-            !  print *,grid1_corner_lat(:,grid1_add)
-            !  print *,grid1_corner_lon(:,grid1_add)
-            !  print *,grid2_corner_lat(:,grid2_add)
-            !  print *,grid2_corner_lon(:,grid2_add)
-            !  print *,beglat,beglon,intrsct_lat,intrsct_lon
-            !endif
-
-            if (.not. lcoinc .and. grid1_add /= 0) then
-              if (grid1_mask(grid1_add)) then
-                call timer_start(8)
-                call store_link_cnsrv(grid1_add, grid2_add, weights)
-                call timer_stop(8)
-                grid1_frac(grid1_add) = grid1_frac(grid1_add) + 
-     &                                  weights(1)
-                grid2_frac(grid2_add) = grid2_frac(grid2_add) + 
-     &                                  weights(num_wts+1)
-              endif
-
-            endif
-
-            grid2_area(grid2_add) = grid2_area(grid2_add) + 
-     &                                      weights(num_wts+1)
-            grid2_centroid_lat(grid2_add) = 
-     &      grid2_centroid_lat(grid2_add) + weights(num_wts+2)
-            grid2_centroid_lon(grid2_add) = 
-     &      grid2_centroid_lon(grid2_add) + weights(num_wts+3)
-
-            !***
-            !*** reset beglat and beglon for next subsegment.
-            !***
-
-            beglat = intrsct_lat
-            beglon = intrsct_lon
-          end do
-
-          endif
-
-          !***
-          !*** end of segment
-          !***
-
-        end do
-
-        !***
-        !*** finished with this cell: deallocate search array and
-        !*** start on next cell
-
-        deallocate(srch_add, srch_corner_lat, srch_corner_lon)
-
-      end do
-
-      deallocate(srch_mask)
+      call timer_stop(2)
 
 !-----------------------------------------------------------------------
 !
@@ -590,118 +173,129 @@
 !     grid (i.e. as a grid corner point). if pole is missing from only
 !     one grid, need to correct only the area and centroid of that 
 !     grid.  if missing from both, do complete weight calculation.
+!     This is necessary only when integrating w.r.t. phi (longitude)
 !
 !-----------------------------------------------------------------------
 
-      !*** North Pole
-      weights(1) =  pi2
-      weights(2) =  pi*pi
-      weights(3) =  zero
-      weights(4) =  pi2
-      weights(5) =  pi*pi
-      weights(6) =  zero
+      if (phi_or_theta .eq. 1) then
 
-      grid1_add = 0
-      pole_loop1: do n=1,grid1_size
-        if (grid1_area(n) < -three*pih .and.
-     &      grid1_center_lat(n) > zero) then
-          grid1_add = n
-          exit pole_loop1
-        endif
-      end do pole_loop1
+         !*** North Pole
+         weights(1) =  pi2
+         weights(2) =  pi*pi
+         weights(3) =  zero
+         weights(4) =  pi2
+         weights(5) =  pi*pi
+         weights(6) =  zero
+         
+         grid1_add = 0
+         pole_loop1: do n=1,grid1_size
+            if (grid1_area(n) < -three*pih .and.
+     &         grid1_center_lat(n) > zero) then
+               grid1_add = n
+               exit pole_loop1
+            endif
+         end do pole_loop1
+      
+         grid2_add = 0
+         pole_loop2: do n=1,grid2_size
+            if (grid2_area(n) < -three*pih .and.
+     &        grid2_center_lat(n) > zero) then
+               grid2_add = n
+               exit pole_loop2
+            endif
+         end do pole_loop2
 
-      grid2_add = 0
-      pole_loop2: do n=1,grid2_size
-        if (grid2_area(n) < -three*pih .and.
-     &      grid2_center_lat(n) > zero) then
-          grid2_add = n
-          exit pole_loop2
-        endif
-      end do pole_loop2
+         if (grid1_add /=0) then
+            grid1_area(grid1_add) = grid1_area(grid1_add) + weights(1)
+            grid1_centroid_lat(grid1_add) = 
+     &           grid1_centroid_lat(grid1_add) + weights(2)
+            grid1_centroid_lon(grid1_add) =
+     &           grid1_centroid_lon(grid1_add) + weights(3)
+         endif
+         
+         if (grid2_add /=0) then
+            grid2_area(grid2_add) = grid2_area(grid2_add) + 
+     &           weights(num_wts+1)
+            grid2_centroid_lat(grid2_add) = 
+     &           grid2_centroid_lat(grid2_add) + weights(num_wts+2)
+            grid2_centroid_lon(grid2_add) =
+     &           grid2_centroid_lon(grid2_add) + weights(num_wts+3)
+         endif
+         
+         if (grid1_add /= 0 .and. grid2_add /=0) then
+            call store_link_cnsrv(grid1_add, grid2_add, weights)
+            
+            grid1_frac(grid1_add) = grid1_frac(grid1_add) + 
+     &           weights(1)
+            grid2_frac(grid2_add) = grid2_frac(grid2_add) + 
+     &           weights(num_wts+1)
+         endif
+         
+         !*** South Pole
+         weights(1) =  pi2
+         weights(2) = -pi*pi
+         weights(3) =  zero
+         weights(4) =  pi2
+         weights(5) = -pi*pi
+         weights(6) =  zero
 
-      if (grid1_add /=0) then
-        grid1_area(grid1_add) = grid1_area(grid1_add) + weights(1)
-        grid1_centroid_lat(grid1_add) = 
-     &  grid1_centroid_lat(grid1_add) + weights(2)
-        grid1_centroid_lon(grid1_add) =
-     &  grid1_centroid_lon(grid1_add) + weights(3)
-      endif
+         grid1_add = 0
+         pole_loop3: do n=1,grid1_size
+         if (grid1_area(n) < -three*pih .and.
+     &        grid1_center_lat(n) < zero) then
+            grid1_add = n
+            exit pole_loop3
+         endif
+         end do pole_loop3
 
-      if (grid2_add /=0) then
-        grid2_area(grid2_add) = grid2_area(grid2_add) + 
-     &                                  weights(num_wts+1)
-        grid2_centroid_lat(grid2_add) = 
-     &  grid2_centroid_lat(grid2_add) + weights(num_wts+2)
-        grid2_centroid_lon(grid2_add) =
-     &  grid2_centroid_lon(grid2_add) + weights(num_wts+3)
-      endif
+         grid2_add = 0
+         pole_loop4: do n=1,grid2_size
+         if (grid2_area(n) < -three*pih .and.
+     &        grid2_center_lat(n) < zero) then
+            grid2_add = n
+            exit pole_loop4
+         endif
+         end do pole_loop4
 
-      if (grid1_add /= 0 .and. grid2_add /=0) then
-        call store_link_cnsrv(grid1_add, grid2_add, weights)
+         if (grid1_add /=0) then
+            grid1_area(grid1_add) = grid1_area(grid1_add) + weights(1)
+            grid1_centroid_lat(grid1_add) = 
+     &           grid1_centroid_lat(grid1_add) + weights(2)
+            grid1_centroid_lon(grid1_add) =
+     &           grid1_centroid_lon(grid1_add) + weights(3)
+         endif
+         
+         if (grid2_add /=0) then
+            grid2_area(grid2_add) = grid2_area(grid2_add) + 
+     &           weights(num_wts+1)
+            grid2_centroid_lat(grid2_add) = 
+     &           grid2_centroid_lat(grid2_add) + weights(num_wts+2)
+            grid2_centroid_lon(grid2_add) =
+     &           grid2_centroid_lon(grid2_add) + weights(num_wts+3)
+         endif
 
-        grid1_frac(grid1_add) = grid1_frac(grid1_add) + 
-     &                          weights(1)
-        grid2_frac(grid2_add) = grid2_frac(grid2_add) + 
+         if (grid1_add /= 0 .and. grid2_add /=0) then
+            call store_link_cnsrv(grid1_add, grid2_add, weights)
+            
+            grid1_frac(grid1_add) = grid1_frac(grid1_add) + 
+     &           weights(1)
+            grid2_frac(grid2_add) = grid2_frac(grid2_add) + 
      &                          weights(num_wts+1)
+         endif
       endif
 
-      !*** South Pole
-      weights(1) =  pi2
-      weights(2) = -pi*pi
-      weights(3) =  zero
-      weights(4) =  pi2
-      weights(5) = -pi*pi
-      weights(6) =  zero
 
-      grid1_add = 0
-      pole_loop3: do n=1,grid1_size
-        if (grid1_area(n) < -three*pih .and.
-     &      grid1_center_lat(n) < zero) then
-          grid1_add = n
-          exit pole_loop3
-        endif
-      end do pole_loop3
-
-      grid2_add = 0
-      pole_loop4: do n=1,grid2_size
-        if (grid2_area(n) < -three*pih .and.
-     &      grid2_center_lat(n) < zero) then
-          grid2_add = n
-          exit pole_loop4
-        endif
-      end do pole_loop4
-
-      if (grid1_add /=0) then
-        grid1_area(grid1_add) = grid1_area(grid1_add) + weights(1)
-        grid1_centroid_lat(grid1_add) = 
-     &  grid1_centroid_lat(grid1_add) + weights(2)
-        grid1_centroid_lon(grid1_add) =
-     &  grid1_centroid_lon(grid1_add) + weights(3)
-      endif
-
-      if (grid2_add /=0) then
-        grid2_area(grid2_add) = grid2_area(grid2_add) + 
-     &                                  weights(num_wts+1)
-        grid2_centroid_lat(grid2_add) = 
-     &  grid2_centroid_lat(grid2_add) + weights(num_wts+2)
-        grid2_centroid_lon(grid2_add) =
-     &  grid2_centroid_lon(grid2_add) + weights(num_wts+3)
-      endif
-
-      if (grid1_add /= 0 .and. grid2_add /=0) then
-        call store_link_cnsrv(grid1_add, grid2_add, weights)
-
-        grid1_frac(grid1_add) = grid1_frac(grid1_add) + 
-     &                          weights(1)
-        grid2_frac(grid2_add) = grid2_frac(grid2_add) + 
-     &                          weights(num_wts+1)
-      endif
+      
+      print *, 'Grid sweeps completed'
+      
 
 !-----------------------------------------------------------------------
 !
 !     finish centroid computation
 !
 !-----------------------------------------------------------------------
+
+      call timer_start(3)
 
       where (grid1_area /= zero)
         grid1_centroid_lat = grid1_centroid_lat/grid1_area
@@ -712,6 +306,7 @@
         grid2_centroid_lat = grid2_centroid_lat/grid2_area
         grid2_centroid_lon = grid2_centroid_lon/grid2_area
       end where
+
 
 !-----------------------------------------------------------------------
 !
@@ -809,15 +404,18 @@
       where (grid1_area /= zero) grid1_frac = grid1_frac/grid1_area
       where (grid2_area /= zero) grid2_frac = grid2_frac/grid2_area
 
+      call timer_stop(3)
+
 !-----------------------------------------------------------------------
 !
 !     perform some error checking on final weights
 !
 !-----------------------------------------------------------------------
 
-      grid2_centroid_lat = zero
-      grid2_centroid_lon = zero
+      call timer_stop(4)
 
+      ave_reldiff = 0.0
+      max_reldiff = -1.0
       do n=1,grid1_size
         if (grid1_area(n) < -.01) then
           print *,'Grid 1 area error: ',n,grid1_area(n)
@@ -826,10 +424,53 @@
      &      grid1_centroid_lat(n) >  pih+.01) then
           print *,'Grid 1 centroid lat error: ',n,grid1_centroid_lat(n)
         endif
-        grid1_centroid_lat(n) = zero
-        grid1_centroid_lon(n) = zero
-      end do
 
+        area = 0.0
+        do i = 1, grid1_corners
+           inext = 1 + mod(i,grid1_corners)
+
+           beglat = grid1_corner_lat(i,n)
+           beglon = grid1_corner_lon(i,n)
+           endlat = grid1_corner_lat(inext,n)
+           endlon = grid1_corner_lon(inext,n)
+
+           if (beglon .eq. endlon) cycle
+
+           call line_integral_phi(weights, num_wts, beglon, endlon,
+     &          beglat, endlat, grid1_center_lat(n), 
+     &          grid1_center_lon(n), grid1_center_lat(n),
+     &          grid1_center_lon(n))
+
+           area = area + weights(1)
+        enddo
+
+        reldiff = abs(area-grid1_area(n))/area
+        ave_reldiff = ave_reldiff + reldiff
+        if (reldiff > max_reldiff) then
+           max_reldiff = reldiff
+           maxrd_cell = n
+           maxrd_area = grid1_area(n)
+           maxrd_true = area
+        endif
+      end do
+      ave_reldiff = ave_reldiff/grid1_size
+
+      print *
+      print *
+      print *,'Grid 1: Ave. rel. diff. in areas: ',
+     &     ave_reldiff
+      print *,'        rel. diff. = abs(area-truearea)/truearea'
+      print *
+      print *,'Grid 1: Max. rel. diff. in areas: ',
+     &     max_reldiff
+      print *, 'Max rel. diff. is in cell ',maxrd_cell
+      print *, 'Computed Area: ', maxrd_area
+      print *, 'True Area: ',maxrd_true 
+      print *
+
+
+      ave_reldiff = 0.0
+      max_reldiff = -1.0
       do n=1,grid2_size
         if (grid2_area(n) < -.01) then
           print *,'Grid 2 area error: ',n,grid2_area(n)
@@ -838,13 +479,70 @@
      &      grid2_centroid_lat(n) >  pih+.01) then
           print *,'Grid 2 centroid lat error: ',n,grid2_centroid_lat(n)
         endif
-        grid2_centroid_lat(n) = zero
-        grid2_centroid_lon(n) = zero
+
+        area = 0.0
+        do i = 1, grid2_corners
+           inext = 1 + mod(i,grid2_corners)
+
+           beglat = grid2_corner_lat(i,n)
+           beglon = grid2_corner_lon(i,n)
+           endlat = grid2_corner_lat(inext,n)
+           endlon = grid2_corner_lon(inext,n)
+
+           if (beglon .eq. endlon) cycle
+
+           call line_integral_phi(weights, num_wts, beglon, endlon,
+     &          beglat, endlat, grid2_center_lat(n), 
+     &          grid2_center_lon(n), grid2_center_lat(n),
+     &          grid2_center_lon(n))
+
+           area = area + weights(1)
+        enddo
+
+        reldiff = abs(area-grid2_area(n))/area
+        ave_reldiff = ave_reldiff + reldiff
+        if (reldiff > max_reldiff) then
+           max_reldiff = reldiff
+           maxrd_cell = n
+           maxrd_area = grid2_area(n)
+           maxrd_true = area
+        endif
       end do
+      ave_reldiff = ave_reldiff/grid2_size
+
+      print *
+      print *,'Grid 2: Ave. rel. diff. in areas: ',
+     &     ave_reldiff
+      print *,'        rel. diff. = abs(area-truearea)/truearea'
+      print *
+      print *,'Grid 2: Max. rel. diff. in areas: ',
+     &     max_reldiff
+      print *, 'Max rel. diff. is in cell ',maxrd_cell
+      print *, 'Computed Area: ', maxrd_area
+      print *, 'True Area: ',maxrd_true 
+      print *
+
+
+      !***
+      !*** In the following code, gridN_centroid_lat is being used to store
+      !*** running tallies of the cell areas - so it is a misnomer used to
+      !*** avoid allocation of a new variable
+      !***
+
+      grid1_centroid_lat = zero
+      grid2_centroid_lat = zero
 
       do n=1,num_links_map1
         grid1_add = grid1_add_map1(n)
         grid2_add = grid2_add_map1(n)
+
+        do nwgt=1,num_wts
+          weights(        nwgt) = wts_map1(nwgt,n)
+          if (num_maps > 1) then
+            weights(num_wts+nwgt) = wts_map2(nwgt,n)
+          endif
+        end do
+
         
         if (wts_map1(1,n) < -.01) then
           print *,'Map 1 weight < 0 ',grid1_add,grid2_add,wts_map1(1,n)
@@ -861,7 +559,7 @@
      &                                  wts_map2(1,n)
           endif
           if (norm_opt /= norm_opt_none .and. wts_map2(1,n) > 1.01) then
-            print *,'Map 2 weight < 0 ',grid1_add,grid2_add,
+            print *,'Map 2 weight > 1 ',grid1_add,grid2_add,
      &                                  wts_map2(1,n)
           endif
           grid1_centroid_lat(grid1_add) = 
@@ -869,22 +567,31 @@
         endif
       end do
 
+
+      !***
+      !*** If grid1 has masks, links between some cells of grid1 and
+      !*** grid2 do not exist even though they overlap. In such a case,
+      !*** the following code will generate errors even though nothing
+      !*** is wrong (grid1_centroid_lat or grid2_centroid_lat are never
+      !*** updated in the above loop)
+      !*** 
+
       do n=1,grid2_size
         select case(norm_opt)
         case (norm_opt_dstarea)
-          norm_factor = grid2_frac(grid2_add)
+          norm_factor = grid2_frac(n)
         case (norm_opt_frcarea)
           norm_factor = one
         case (norm_opt_none)
           if (luse_grid2_area) then
-            norm_factor = grid2_area_in(grid2_add)
+            norm_factor = grid2_area_in(n)
           else
-            norm_factor = grid2_area(grid2_add)
+            norm_factor = grid2_area(n)
           endif
         end select
-        if (abs(grid2_centroid_lat(grid2_add)-norm_factor) > .01) then
-          print *,'Error: sum of wts for map1 ',grid2_add,
-     &            grid2_centroid_lat(grid2_add),norm_factor
+        if (abs(grid2_centroid_lat(n)-norm_factor) > .01) then
+          print *,'Error: sum of wts for map1 ',n,
+     &            grid2_centroid_lat(n),norm_factor
         endif
       end do
 
@@ -892,40 +599,985 @@
         do n=1,grid1_size
           select case(norm_opt)
           case (norm_opt_dstarea)
-            norm_factor = grid1_frac(grid1_add)
+            norm_factor = grid1_frac(n)
           case (norm_opt_frcarea)
             norm_factor = one
           case (norm_opt_none)
             if (luse_grid1_area) then
-              norm_factor = grid1_area_in(grid1_add)
+              norm_factor = grid1_area_in(n)
             else
-              norm_factor = grid1_area(grid1_add)
+              norm_factor = grid1_area(n)
             endif
           end select
-          if (abs(grid1_centroid_lat(grid1_add)-norm_factor) > .01) then
-            print *,'Error: sum of wts for map2 ',grid1_add,
-     &              grid1_centroid_lat(grid1_add),norm_factor
+          if (abs(grid1_centroid_lat(n)-norm_factor) > .01) then
+            print *,'Error: sum of wts for map2 ',n,
+     &              grid1_centroid_lat(n),norm_factor
           endif
         end do
       endif
 !-----------------------------------------------------------------------
 
+      call timer_stop(4)
+
+      print *, 'Finished Conservative Remapping'
+
+
+      call timer_print(1)
+      call timer_print(2)
+      call timer_print(3)
+      call timer_print(4)
+
       end subroutine remap_conserv
 
 !***********************************************************************
 
-      subroutine intersection(location,intrsct_lat,intrsct_lon,lcoinc,
-     &                        beglat, beglon, endlat, endlon, begseg,
-     &                        lbegin, lrevers)
+
+
+!***********************************************************************
+
+      subroutine cellblock_integrate(ibegin, iend, grid_num, 
+     &     phi_or_theta) 
+
+      integer (SCRIP_i4) :: ibegin, iend, grid_num, phi_or_theta
+
+      integer (SCRIP_i4) :: cell_add
+
+      
+      do cell_add = ibegin, iend
+
+         call cell_integrate(cell_add, grid_num, phi_or_theta)
+
+      enddo
+
+
+
+      end subroutine cellblock_integrate
+
+!***********************************************************************
+
+
+
+!***********************************************************************
+
+      subroutine cell_integrate(cell_add, grid_num, phi_or_theta)
 
 !-----------------------------------------------------------------------
 !
-!     this routine finds the next intersection of a destination grid 
-!     line with the line segment given by beglon, endlon, etc.
-!     a coincidence flag is returned if the segment is entirely 
-!     coincident with an ocean grid line.  the cells in which to search
-!     for an intersection must have already been restricted in the
-!     calling routine.
+!     Integrate around cell while finding intersecting with opposite
+!     grid cells and finding segments of cell boundary lying in cells
+!     of opposite grid
+!
+!-----------------------------------------------------------------------
+
+!-----------------------------------------------------------------------
+!
+!     Input variables
+!
+!-----------------------------------------------------------------------
+      
+      integer (SCRIP_i4) ::
+     &     cell_add,            ! cell to be processed
+     &     grid_num,            ! grid that the cell belongs to
+     &     phi_or_theta         ! Integration var -  phi (lon) or theta (lat)
+
+
+!-----------------------------------------------------------------------
+!
+!     local variables
+!
+!-----------------------------------------------------------------------
+
+      integer (SCRIP_i4), parameter ::
+     &     max_subseg = 100     ! max number of subsegments per segment
+                                ! to prevent infinite loop
+
+
+      integer (SCRIP_i4) :: 
+     &     i, inext,            !
+     &     j, jnext,            ! generic counters
+     &     ic, k, ns,           !
+     &     n, next_n,           !
+     &     nwgt, it,            !
+     &     oppcell_add,         ! Cell from opposite grid we are intersecting
+     &     opp_grid_num,        ! Index of opposite grid (2,1)
+     &     min_add,             ! addresses for restricting search of
+     &     max_add,             !   destination grid
+     &     corner,              ! corner of cell that segment starts from
+     &     ncorners,            !
+     &     next_corn,           ! corner of cell that segment ends on
+     &     nseg,                ! number of segments to use to represent 
+                                ! edges near the pole                   
+     &     num_subseg,          ! number of subsegments
+     &     bedgeid1,            !
+     &     bedgeid2,            ! ID of edge that a point is on
+     &     bedgeid3,            !
+     &     intedge,             ! ID of intersected edge
+     &     last_add,            ! Address of last cell we were in
+     &     next_add,            ! Address of next cell we will go into
+     &     adj_add              ! Address of cell adjacent to current one
+
+      logical (SCRIP_logical) :: 
+     &     lcoinc,              ! Are segments coincident?
+     &     lrevers,             ! Are we integrating segment in reverse?
+     &     lboundary1, 
+     &     lboundary2,          ! Is point is on cell boundary?
+     &     lboundary3,          
+     &     last_lboundary,      ! Is last point is on cell bdry?
+     &     loutside,            ! Is point outside the grid?
+     &     lthresh,             ! Has segment crossed threshold?
+     &     srch_success,        ! Was search for segment start successful?
+     &     intrsct_success,     ! Was intersection of segment with opposite
+                                ! grid successful?
+     &     inpoly,              ! Is point is in polygon
+     &     last_endpt_inpoly,   ! Was end point of last segment in cell
+     &     last_endpt_onedge,   ! Was end point of last segment on edge of cell
+     &     lstuck,              ! Is the walk stuck inside a cell
+     &     seg_outside,         ! Is segment completely outside the grid
+     &     bndedge,             ! Is segment on the boundary of the grid
+     &     search,              ! Do we have to search to locate point in grid
+     &     inpolar              ! Are we in the polar region?
+
+      real (SCRIP_r8) ::
+     &     intrsct_lat,         ! lat of next intersection point
+     &     intrsct_lon,         ! lon of next intersection point
+     &     beglat, beglon,      ! start point of current sub seg
+     &     endlat, endlon,      ! endpoint of current seg (chg to endseg?)
+     &     endlat1, endlon1,    ! endpoint of current subseg
+     &     norm_factor          ! factor for normalizing wts
+
+      real (SCRIP_r8), dimension(2) :: 
+     &     begseg               ! begin lat/lon for full segment
+
+      real (SCRIP_r8), dimension(6) :: 
+     &     weights              ! local wgt array
+
+      real (SCRIP_r8) ::
+     &     vec1_lat, vec1_lon,  ! vectors, products
+     &     vec2_lat, vec2_lon,  ! used in grid search
+     &     vec1_len, dp,
+     &     midlat, midlon,      ! Midpoint of segment
+     &     tmplat, tmplon,
+     &     srchpt_lat,          ! Search point (offset from seg. start)
+     &     srchpt_lon,          
+     &     offset, delta,       ! Offset and offset increase for search
+     &     sinang2,             ! Square of sine of angle b/w two segments
+     &     dist2,               ! Square of distance b/w two points
+     &     fullseg_len2,        ! Square of full segment length
+     &     partseg_len2,        ! Square of length of segment integrated so far
+     &     fullseg_dlat,        ! Lat diff of full segment endpoints
+     &     fullseg_dlon         ! Lon diff of full segment endpoints
+
+      real (SCRIP_r8) ::
+     &     tmpwt1, tmpwt2
+
+      integer (SCRIP_i4) ::
+     &     tmpnseg
+
+
+
+
+
+      if (grid_num .eq. 1) then
+         opp_grid_num = 2
+         ncorners = grid1_corners
+      else
+         opp_grid_num = 1
+         ncorners = grid2_corners
+      endif
+
+      do corner = 1, ncorners
+         next_corn = mod(corner,ncorners) + 1
+
+         !***
+         !*** define endpoints of the current segment
+         !***
+
+         if (grid_num .eq. 1) then
+            beglat = grid1_corner_lat(corner,cell_add)
+            beglon = grid1_corner_lon(corner,cell_add)
+            endlat = grid1_corner_lat(next_corn,cell_add)
+            endlon = grid1_corner_lon(next_corn,cell_add)
+         else
+            beglat = grid2_corner_lat(corner,cell_add)
+            beglon = grid2_corner_lon(corner,cell_add)
+            endlat = grid2_corner_lat(next_corn,cell_add)
+            endlon = grid2_corner_lon(next_corn,cell_add)
+         endif
+         lrevers = .false.
+
+
+         !***
+         !*** if this is a constant-longitude segment, skip the rest 
+         !*** since the line integral contribution will be zero.
+         !***
+
+         if ((phi_or_theta == 1 .and. endlon == beglon) .or.
+     &        (phi_or_theta == 2 .and. endlat == beglat)) cycle
+
+
+         !***
+         !*** to ensure exact path taken during both
+         !*** sweeps, always integrate segments in the same 
+         !*** direction (SW to NE).
+         !***
+
+         if ((endlat < beglat) .or.
+     &        (endlat == beglat .and. endlon < beglon)) then
+            tmplat = beglat
+            beglat = endlat
+            endlat = tmplat
+            tmplon = beglon
+            beglon = endlon
+            endlon = tmplon
+            lrevers = .not. lrevers
+         endif
+
+         !*** But if one of the segment ends is in the polar region,
+         !*** we want to start from that (makes some logic easier)
+
+         if ((beglat < north_thresh .and. endlat > north_thresh) .or.
+     &       (beglat > south_thresh .and. endlat < south_thresh)) 
+     &        then
+            tmplat = beglat
+            beglat = endlat
+            endlat = tmplat
+            tmplon = beglon
+            beglon = endlon
+            endlon = tmplon
+            lrevers = .not. lrevers
+         endif
+
+         begseg(1) = beglat
+         begseg(2) = beglon
+         
+
+         fullseg_dlat = endlat-beglat
+         fullseg_dlon = endlon-beglon
+         if (fullseg_dlon >  pi) fullseg_dlon = fullseg_dlon - pi2
+         if (fullseg_dlon < -pi) fullseg_dlon = fullseg_dlon + pi2
+         fullseg_len2 = fullseg_dlat*fullseg_dlat + 
+     &        fullseg_dlon*fullseg_dlon
+         
+         partseg_len2 = 0.0
+
+
+         !***
+         !*** Is this an edge on the boundary of the grid or 
+         !*** on the boundary of the active cells
+         !*** 
+
+         call find_adj_cell(cell_add, corner, grid_num, adj_add)
+         if (grid_num .eq. 1) then
+            if (adj_add .eq. 0 .or. .not. grid1_mask(adj_add)) then
+               bndedge = .true.
+            else
+               bndedge = .false.
+            endif
+         else
+            if (adj_add .eq. 0 .or. .not. grid2_mask(adj_add)) then
+               bndedge = .true.
+            else
+               bndedge = .false.
+            endif
+         endif
+         
+
+         !***
+         !*** integrate along this segment, detecting intersections 
+         !*** and computing the line integral for each sub-segment
+         !***
+
+         if (beglat .gt. north_thresh .or. beglat .lt. south_thresh)
+     &        then
+            nseg = npseg     ! Use multiple subsegments near the pole
+            inpolar = .true.
+         else
+            nseg = 1
+            inpolar = .false.
+         endif
+
+
+         last_add = 0
+         last_lboundary = .false.
+         last_endpt_inpoly = .false.
+         last_endpt_onedge = .false.
+         next_add = 0
+         search = .true.
+         ns = 1
+
+         tmpnseg = 0
+         tmpwt1 = 0
+         tmpwt2 = 0
+         do while (beglat /= endlat .or. beglon /= endlon)
+            
+            if ((ns .eq. nseg) .or. (inpolar .eqv. .false.)) then
+               !
+               ! Last subseg or out of the polar region
+               ! Go directly to end of segment
+               !
+               endlat1 = endlat
+               endlon1 = endlon
+            else
+               endlat1 = begseg(1) + ns*(fullseg_dlat)/nseg                
+               endlon1 = begseg(2) + ns*(fullseg_dlon)/nseg
+            endif
+            
+            num_subseg = 0
+            do while (beglat /= endlat1 .or. beglon /= endlon1)
+               
+               !*** 
+               !*** If we integrated to the end or just past it (due to 
+               !*** numerical errors), we are done with this segment
+               !***
+
+               if (partseg_len2 .ge. fullseg_len2) exit
+
+
+
+               !******************************************************
+               !*** Try to find which cell of grid 2 this segment is 
+               !*** starting in and where it is exiting this cell
+               !******************************************************
+         
+               vec1_lat = endlat1-beglat
+               vec1_lon = endlon1-beglon
+               if (vec1_lon > pi) vec1_lon = vec1_lon - pi2
+               if (vec1_lon < -pi) vec1_lon = vec1_lon + pi2
+               vec1_len = sqrt(vec1_lat*vec1_lat+vec1_lon*vec1_lon)
+               vec1_lat = vec1_lat/vec1_len
+               vec1_lon = vec1_lon/vec1_len
+               
+               offset = 100.0*tiny
+               oppcell_add = 0
+               delta = 10*tiny
+               intrsct_success = .false.
+               loutside = .false.
+               lstuck = .false.
+               lboundary1 = .false.
+               lboundary2 = .false.
+               lboundary3 = .false.
+               
+               do while (.not. intrsct_success) 
+
+
+                  !*************************************************
+                  !*** Find out which cell the segment starts in
+                  !*************************************************
+
+
+                  srch_success = .false.
+                  if (search) then
+
+                     !***
+                     !*** Offset the start point in ever increasing 
+                     !*** amounts until we are able to reliably locate 
+                     !*** the point in a cell of grid2. Inability to locate 
+                     !*** the point causes the offset amount to increase
+
+                     it = 0
+                     do while (.not. srch_success) 
+                        
+                        srchpt_lat = beglat + offset*vec1_lat
+                        srchpt_lon = beglon + offset*vec1_lon
+                        
+                        call locate_point(srchpt_lat, srchpt_lon,
+     &                       cell_add, grid_num, opp_grid_num, 
+     &                       oppcell_add, lboundary1, bedgeid1)
+                        
+                        if (oppcell_add .eq. 0) then
+                           loutside = .true.
+                           exit ! exit the search loop
+                        else
+                           if (oppcell_add .ne. last_add .or. lthresh) 
+     &                          then
+                              srch_success = .true.                       
+                           else
+                              offset = offset + delta
+                              if (offset .ge. vec1_len) then
+                                 exit
+                              endif                               
+                              if (it .gt. 5) then
+                                 delta = 2.0*delta
+                                 it = 0
+                              endif
+                           endif                        
+                        endif
+                        
+                        it = it + 1                         
+                     enddo   ! do while (.not. srch_success)
+                     
+                  else
+                     if (last_endpt_inpoly) then
+
+                        !*** We know the grid cell the end of the last 
+                        !*** segment (which is the beginning of this 
+                        !*** segment)
+
+                        oppcell_add = last_add
+                        lboundary1 = last_lboundary
+
+                     else if (next_add .ne. 0) then
+
+                        !*** We know the edge of the grid2 cell that the
+                        !*** last segment intersected, so we move into
+                        !*** the adjacent cell
+
+                        oppcell_add = next_add
+                        lboundary1 = .true.
+                        
+                     endif
+                     
+                     srch_success = .true.
+                     
+                  endif
+                  
+                  
+                  
+                  if (srch_success) then 
+
+                     !*****************************************************
+                     !*** Find where the segment exits this cell, if at all
+                     !*****************************************************
+            
+
+                     !***
+                     !*** First see if the segment end is in the same cell
+                     !***
+
+                     if (grid_num .eq. 1) then
+                        call ptincell(endlat1,endlon1, oppcell_add, 
+     &                       grid2_corners,
+     &                       grid2_corner_lat(:,oppcell_add),
+     &                       grid2_corner_lon(:,oppcell_add),
+     &                       grid2_center_lat(oppcell_add),
+     &                       grid2_center_lon(oppcell_add),
+     &                       opp_grid_num,inpoly,
+     &                       lboundary2,bedgeid2) 
+                     else
+                        call ptincell(endlat1,endlon1, oppcell_add, 
+     &                       grid1_corners,
+     &                       grid1_corner_lat(:,oppcell_add),
+     &                       grid1_corner_lon(:,oppcell_add),
+     &                       grid1_center_lat(oppcell_add),
+     &                       grid1_center_lon(oppcell_add),
+     &                       opp_grid_num,inpoly,
+     &                       lboundary2,bedgeid2) 
+                     endif
+                     
+                     if (inpoly) then
+                        intrsct_lat = endlat1
+                        intrsct_lon = endlon1
+                        intrsct_success = .true.                  
+                        search = .false.
+                        next_add = 0
+                        last_add = oppcell_add        ! for next subseg
+                        last_lboundary = lboundary2
+                        last_endpt_inpoly = .true.
+                        
+                        if (lboundary1 .and. lboundary2) then
+                  
+                           !*** This is a edge on the boundary of the 
+                           !*** active mesh and both of its endpoints 
+                           !*** are on the boundary of the containing 
+                           !*** cell. Check if the the segment is also 
+                           !*** on the boundary
+
+                           midlat = (beglat+endlat1)/2.0
+                           if (abs(beglon-endlon1) .ge. pi) then
+                              midlon = (beglon+endlon1)/2.0 - pi
+                           else
+                              midlon = (beglon+endlon1)/2.0
+                           endif 
+                           
+                           if (grid_num .eq. 1) then
+                              call ptincell(midlat,midlon, oppcell_add, 
+     &                             grid2_corners,
+     &                             grid2_corner_lat(:,oppcell_add),
+     &                             grid2_corner_lon(:,oppcell_add),
+     &                             grid2_center_lat(oppcell_add),
+     &                             grid2_center_lon(oppcell_add),
+     &                             opp_grid_num,inpoly,
+     &                             lboundary3,bedgeid3) 
+                           else
+                              call ptincell(midlat,midlon, oppcell_add, 
+     &                             grid1_corners,
+     &                             grid1_corner_lat(:,oppcell_add),
+     &                             grid1_corner_lon(:,oppcell_add),
+     &                             grid1_center_lat(oppcell_add),
+     &                             grid1_center_lon(oppcell_add),
+     &                             opp_grid_num,inpoly,
+     &                             lboundary3,bedgeid3) 
+                           endif
+                           
+                           if (inpoly .and. lboundary3) then
+                              lcoinc = .true.
+                              intedge = bedgeid3
+                           endif
+                           
+                        else
+                           lcoinc = .false.
+                        endif
+                        
+                     else
+
+                      
+                        !***
+                        !*** Do an intersection to find out where the 
+                        !*** segment exits the cell
+                        !***
+
+                        if (grid_num .eq. 1) then
+                           call intersection(cell_add,grid_num,
+     &                          beglat, beglon, endlat1, endlon1, 
+     &                          begseg,
+     &                          bedgeid1,
+     &                          oppcell_add, grid2_corners,
+     &                          grid2_corner_lat(:,oppcell_add),
+     &                          grid2_corner_lon(:,oppcell_add),
+     &                          opp_grid_num,
+     &                          intrsct_lat, intrsct_lon, intedge,
+     &                          sinang2, lcoinc, lthresh)
+                        else
+                           call intersection(cell_add,grid_num,
+     &                          beglat, beglon, endlat1, endlon1, 
+     &                          begseg,
+     &                          bedgeid1,
+     &                          oppcell_add, grid1_corners,
+     &                          grid1_corner_lat(:,oppcell_add),
+     &                          grid1_corner_lon(:,oppcell_add),
+     &                          opp_grid_num,
+     &                          intrsct_lat, intrsct_lon, intedge,
+     &                          sinang2, lcoinc, lthresh)
+                        endif
+                      
+                        if (intedge /= 0) then
+                           intrsct_success = .true.
+                           last_add = oppcell_add     ! for next subseg
+                           last_endpt_onedge = .true.
+                           last_endpt_inpoly = .false.
+                           last_lboundary = .true.
+
+                           if (.not. lthresh) then
+                              call find_adj_cell(oppcell_add,intedge,
+     &                             opp_grid_num,next_add)
+                              if (next_add .ne. 0) then
+                                 search = .false.
+                              else
+                                 search = .true.
+                              endif
+                           else
+                              search = .true.
+                           endif
+                        endif
+                        
+                     endif
+                     
+                     if (.not. intrsct_success) then
+                        
+                        !*** Offset point and try again
+
+                        search = .true.
+                        delta = 2.0*delta
+                        offset = offset + delta
+                        if (offset .gt. vec1_len) then
+
+                           ! Punt - exit the intersection loop
+
+                           intrsct_lat = endlat1
+                           intrsct_lon = endlon1
+                           last_add = 0
+                           last_lboundary = .false.
+                           exit              
+
+                        endif
+                     endif
+                   
+
+                     if (lcoinc .and. .not. bndedge) then
+                      
+                        !***
+                        !*** Segment is coincident with edge of other grid
+                        !*** which means it could belong to one of 2 cells
+                        !*** Choose the cell such that edge that is 
+                        !*** coincident with the segment is in the same
+                        !*** dir as the segment
+
+                        if (grid_num .eq. 1) then
+                           i = intedge
+                           inext = mod(i,grid2_corners)+1
+                           vec2_lat= grid2_corner_lat(inext,oppcell_add)
+     &                          - grid2_corner_lat(i,oppcell_add)
+                           vec2_lon= grid2_corner_lon(inext,oppcell_add)
+     &                          - grid2_corner_lon(i,oppcell_add)
+                        else
+                           i = intedge
+                           inext = mod(i,grid1_corners)+1
+                           vec2_lat= grid1_corner_lat(inext,oppcell_add)
+     &                          - grid1_corner_lat(i,oppcell_add)
+                           vec2_lon= grid1_corner_lon(inext,oppcell_add)
+     &                          - grid1_corner_lon(i,oppcell_add)
+                        endif
+
+                        if (vec2_lon >  pi) vec2_lon = vec2_lon - pi2
+                        if (vec2_lon < -pi) vec2_lon = vec2_lon + pi2
+                        
+                        dp = vec1_lat*vec2_lat + vec1_lon*vec2_lon
+                        
+                        if ((.not. lrevers .and. dp .lt. 0) .or.
+     &                       (lrevers .and. dp .gt. 0)) then
+                         
+                           !*** Integrals from this segment must be
+                           !*** assigned to the adjacent cell of grid1_add
+
+                           call find_adj_cell(oppcell_add, intedge, 
+     &                          opp_grid_num, adj_add)
+                           oppcell_add = adj_add
+                           
+                        endif
+                        
+                     endif
+                     
+                  else
+
+                     !***
+                     !*** Could locate a viable cell for the segment start
+
+                     if (oppcell_add .eq. 0) then                     
+                        loutside = .true.
+                      
+                        !***
+                        !*** Take baby steps to see if any part of the
+                        !*** segment is inside a cell of the other grid
+                        !***
+
+                        seg_outside = .false.
+                        delta = vec1_len/1000.00
+                        offset = delta
+                        do while (.not. srch_success)
+                         
+                           srchpt_lat = beglat + offset*vec1_lat
+                           srchpt_lon = beglon + offset*vec1_lon
+                           
+                           call locate_point(srchpt_lat, srchpt_lon, 
+     &                          cell_add, grid_num, opp_grid_num, 
+     &                          oppcell_add, lboundary1, bedgeid1)
+                           
+                           
+                           if (oppcell_add /= 0) then
+                              srch_success = .true.
+
+                              !***
+                              !*** Found a point of the segment in the cell
+                              !*** Do a bisection method to find the 
+                              !*** starting point of the segment in the cell
+                              !***
+
+                              if (grid_num .eq. 1) then
+                                 call converge_to_bdry(oppcell_add, 
+     &                                opp_grid_num,
+     &                                grid2_corners, 
+     &                                grid2_corner_lat(:,oppcell_add),
+     &                                grid2_corner_lon(:,oppcell_add),
+     &                                grid2_center_lat(oppcell_add),
+     &                                grid2_center_lon(oppcell_add),
+     &                                srchpt_lat, srchpt_lon,
+     &                                beglat, beglon,
+     &                                intrsct_lat, intrsct_lon, 
+     &                                bedgeid1)
+                              else
+                                 call converge_to_bdry(oppcell_add, 
+     &                                opp_grid_num,
+     &                                grid1_corners, 
+     &                                grid1_corner_lat(:,oppcell_add),
+     &                                grid1_corner_lon(:,oppcell_add),
+     &                                grid1_center_lat(oppcell_add),
+     &                                grid1_center_lon(oppcell_add),
+     &                                srchpt_lat, srchpt_lon,
+     &                                beglat, beglon,
+     &                                intrsct_lat, intrsct_lon, 
+     &                                bedgeid1)
+                              endif
+
+                              search = .false.
+                              last_endpt_onedge = .true.
+                              next_add = oppcell_add
+                              last_lboundary = .true.
+                                                         
+                              oppcell_add = 0  
+
+                           else
+
+                              offset = offset + delta
+                              
+                              if (offset .ge. vec1_len) then
+!                                 print *, 
+!     &                                'Segment fully outside grid2'
+!                                 print *, 'Segment of grid1_add',
+!     &                                grid1_add
+!                                 print *, beglat,beglon
+!                                 print *, endlat1,endlon1
+
+
+                                 seg_outside = .true.
+
+                                 intrsct_lat = endlat1
+                                 intrsct_lon = endlon1 
+                                 
+                                 search = .true.
+                                 last_add = 0
+                                 last_lboundary = .false.
+
+                                 exit ! leave search loop
+                              endif
+                           endif
+                         
+                        enddo
+
+                        if (srch_success .or. seg_outside) exit   ! int. loop
+                        
+                     else
+                        
+                        print *, 'Unable to move out of last cell'
+                        print *, 'Segment of edge ',corner,
+     &                       ' of grid cell ',cell_add
+                        print *, 'Stuck in opposite grid cell ',
+     &                       oppcell_add
+                        dist2 = 
+     &                      (endlat1-begseg(1))*(endlat1-begseg(1)) +
+     &                      (endlon1-begseg(2))*(endlon1-begseg(2))
+                        print *, 'Fraction of segment left ',
+     &                       vec1_len/sqrt(dist2)
+                        lstuck = .true.
+                        
+                        !***
+                        !*** Punt - just assign the rest of the segment 
+                        !*** to the current cell it is stuck in by tagging 
+                        !*** the segment endpoint as the intersection point
+
+                        intrsct_lat = endlat1
+                        intrsct_lon = endlon1
+
+                        search = .true.
+                        last_add = 0
+                        last_lboundary = .false.
+                        
+                     endif
+
+                     exit    ! exit the intersection loop
+                     
+                  endif      ! if (srch_success) then ... else ....
+
+
+               end do        ! do while (.not. intrsct_success)
+
+
+
+
+
+               !**********************************************************
+               !*** Compute the line integrals for this subsegment
+               !**********************************************************
+            
+               if (grid_num .eq. 1) then
+                  if (oppcell_add /= 0) then
+                     call line_integral(phi_or_theta, weights, num_wts,
+     &                    beglon, intrsct_lon, beglat, intrsct_lat,
+     &                    grid1_center_lat(cell_add), 
+     &                    grid1_center_lon(cell_add),
+     &                    grid2_center_lat(oppcell_add), 
+     &                    grid2_center_lon(oppcell_add))
+                  else
+                     call line_integral(phi_or_theta, weights, num_wts,
+     &                    beglon, intrsct_lon, beglat, intrsct_lat,
+     &                    grid1_center_lat(cell_add), 
+     &                    grid1_center_lon(cell_add),
+     &                    grid1_center_lat(cell_add), 
+     &                    grid1_center_lon(cell_add))
+                  endif
+               else
+                  if (oppcell_add /= 0) then
+                     call line_integral(phi_or_theta, weights, num_wts,
+     &                    beglon, intrsct_lon, beglat, intrsct_lat,
+     &                    grid2_center_lat(cell_add), 
+     &                    grid2_center_lon(cell_add),
+     &                    grid1_center_lat(oppcell_add), 
+     &                    grid1_center_lon(oppcell_add))
+                  else
+                     call line_integral(phi_or_theta, weights, num_wts,
+     &                    beglon, intrsct_lon, beglat, intrsct_lat,
+     &                    grid2_center_lat(cell_add), 
+     &                    grid2_center_lon(cell_add),
+     &                    grid2_center_lat(cell_add), 
+     &                    grid2_center_lon(cell_add))
+                  endif
+               endif
+             
+               !***
+               !*** if integrating in reverse order, change
+               !*** sign of weights
+               !***
+
+               if (lrevers) then
+                  weights = -weights
+               endif
+               
+
+               !***
+               !*** store the appropriate addresses and weights. 
+               !*** also add contributions to cell areas and centroids.
+               !***
+
+               if (grid_num .eq. 1) then
+
+                  if (oppcell_add /= 0) then
+                     if (grid1_mask(cell_add)) then
+                        call store_link_cnsrv(cell_add, oppcell_add, 
+     &                       weights)
+
+                        grid1_frac(cell_add) = 
+     &                       grid1_frac(cell_add) + weights(1)
+
+                        grid2_frac(oppcell_add) = 
+     &                      grid2_frac(oppcell_add) + weights(num_wts+1)
+                     endif
+                     
+                  endif
+                  
+                  grid1_area(cell_add) = grid1_area(cell_add) + 
+     &                 weights(1)
+                  grid1_centroid_lat(cell_add) = 
+     &                 grid1_centroid_lat(cell_add) + weights(2)
+                  grid1_centroid_lon(cell_add) = 
+     &                 grid1_centroid_lon(cell_add) + weights(3)
+
+               else
+
+                  if (.not. lcoinc .and. oppcell_add /= 0) then
+                     if (grid1_mask(oppcell_add)) then
+                        call store_link_cnsrv(oppcell_add, cell_add, 
+     &                       weights)
+                        grid2_frac(cell_add) = 
+     &                       grid2_frac(cell_add) + weights(1)
+
+                        grid1_frac(oppcell_add) = 
+     &                      grid1_frac(oppcell_add) + weights(num_wts+1)
+                     endif
+                     
+                  endif
+                  
+                  grid2_area(cell_add) = grid2_area(cell_add) + 
+     &                 weights(1)
+                  grid2_centroid_lat(cell_add) = 
+     &                 grid2_centroid_lat(cell_add) + weights(2)
+                  grid2_centroid_lon(cell_add) = 
+     &                 grid2_centroid_lon(cell_add) + weights(3)
+
+               endif
+
+               tmpnseg = tmpnseg + 1
+               tmpwt1 = tmpwt1 + weights(1)
+               
+
+               !***
+               !*** reset beglat and beglon for next subsegment.
+               !***
+
+               beglat = intrsct_lat
+               beglon = intrsct_lon
+               
+
+               !***
+               !*** How far have we come from the start of the segment
+               !***
+             
+               vec2_lat = intrsct_lat-begseg(1)
+               vec2_lon = intrsct_lon-begseg(2)
+               if (vec2_lon >  pi) vec2_lon = vec2_lon - pi2
+               if (vec2_lon < -pi) vec2_lon = vec2_lon + pi2
+               
+               partseg_len2 = vec2_lat*vec2_lat + vec2_lon*vec2_lon
+
+
+               !***
+               !*** prevent infinite loops if integration gets stuck
+               !*** near cell or threshold boundary
+               !***
+
+               num_subseg = num_subseg + 1
+               if (num_subseg > max_subseg) then
+                  print *, 
+     &               'integration stalled: num_subseg exceeded limit'
+                  print *, 'Cell ',cell_add
+                  print *, 'Edge ',corner
+                  print *, 'Grid ',1
+                  dist2 = (endlat1-begseg(1))*(endlat1-begseg(1)) +
+     &                 (endlon1-begseg(2))*(endlon1-begseg(2))
+                  print *, 'Fraction of segment left ',
+     &                 vec1_len/sqrt(dist2)
+                  exit       ! Give up
+               endif
+
+
+            end do           ! do while (beglat /= endlat1 ...
+
+            ns = ns + 1
+            if ((beglat > 0 .and. beglat < north_thresh) .or. 
+     &           (beglat < 0 .and. beglat > south_thresh)) 
+     &           then
+               inpolar = .false.
+            endif
+
+         end do              ! do while (beglat /= endlat ....
+
+
+         if (grid_num .eq. 1) then
+            call line_integral(phi_or_theta, weights, num_wts,
+     &           begseg(2), endlon, begseg(1), endlat,
+     &           grid1_center_lat(cell_add), 
+     &           grid1_center_lon(cell_add),
+     &           grid1_center_lat(cell_add), 
+     &           grid1_center_lon(cell_add))
+         else
+            call line_integral(phi_or_theta, weights, num_wts,
+     &           begseg(2), endlon, begseg(1), endlat,
+     &           grid2_center_lat(cell_add), 
+     &           grid2_center_lon(cell_add),
+     &           grid2_center_lat(cell_add), 
+     &           grid2_center_lon(cell_add))
+         endif
+
+         tmpwt2 = weights(1)
+         if (lrevers) tmpwt2 = -tmpwt2
+
+         if (abs(tmpwt1) .gt. tiny) then
+            write(19,*) cell_add, corner, tmpnseg,tmpwt1,tmpwt2,
+     &           abs(tmpwt2-tmpwt1)/abs(tmpwt2)
+         endif
+
+         !***
+         !*** end of segment
+         !***
+
+      end do                    ! do corner=....
+
+      end subroutine cell_integrate
+
+
+
+!***********************************************************************
+
+      subroutine intersection(seg_cell_id, seg_grid_id,
+     &     beglat, beglon, endlat, endlon, begseg, begedge,
+     &     cell_id, ncorners, cell_corner_lat,
+     &     cell_corner_lon, cell_grid_id, intrsct_lat, intrsct_lon,
+     &     intedge, sinang2, lcoinc, lthresh)
+
+!-----------------------------------------------------------------------
+!
+!     this routine finds the intersection of a line segment given by 
+!     beglon, endlon, etc. with a cell from another grid
+!     A coincidence flag is returned if the segment is entirely 
+!     coincident with an edge of the opposite.  
 !
 !-----------------------------------------------------------------------
 
@@ -935,16 +1587,35 @@
 !
 !-----------------------------------------------------------------------
 
-      logical (SCRIP_logical), intent(in) ::
-     &     lbegin, ! flag for first integration along this segment
-     &     lrevers ! flag whether segment integrated in reverse
+      integer (SCRIP_i4), intent(in) ::
+     &     seg_cell_id          ! ID of cell that intersecting segment is from
+
+      integer (SCRIP_i4), intent(in) ::
+     &     seg_grid_id          ! ID of grid that intersecting segment is from
 
       real (SCRIP_r8), intent(in) :: 
-     &     beglat, beglon,  ! beginning lat/lon endpoints for segment
-     &     endlat, endlon   ! ending    lat/lon endpoints for segment
+     &     beglat, beglon,      ! beginning lat/lon endpoints for segment
+     &     endlat, endlon       ! ending    lat/lon endpoints for segment
 
       real (SCRIP_r8), dimension(2), intent(inout) :: 
-     &     begseg ! begin lat/lon of full segment
+     &     begseg               ! begin lat/lon of full segment
+
+      integer (SCRIP_i4), intent(in) ::
+     &     begedge              ! edge that beginning point is on (can be 0)
+
+      integer (SCRIP_i4), intent(in) ::
+     &     cell_id              ! cell to intersect with
+      
+      integer (SCRIP_i4), intent(in) ::
+     &     ncorners             ! number of corners of cell
+
+      real (SCRIP_r8), dimension(ncorners), intent(in) ::
+     &     cell_corner_lat,     ! coordinates of cell corners
+     &     cell_corner_lon
+
+      integer (SCRIP_i4), intent(in) ::
+     &     cell_grid_id         ! which grid is the cell from?
+
 
 !-----------------------------------------------------------------------
 !
@@ -952,16 +1623,23 @@
 !
 !-----------------------------------------------------------------------
 
-      integer (SCRIP_i4), intent(out) ::
-     &        location  ! address in destination array containing this
-                        ! segment
-
-      logical (SCRIP_logical), intent(out) ::
-     &        lcoinc    ! flag segments which are entirely coincident
-                        ! with a grid line
+      real (SCRIP_r8), intent(out) ::
+     &     intrsct_lat, 
+     &     intrsct_lon          ! lat/lon coords of intersection
 
       real (SCRIP_r8), intent(out) ::
-     &     intrsct_lat, intrsct_lon ! lat/lon coords of next intersect.
+     &     sinang2              ! square of sine of angle between
+                                ! intersecting lines
+
+      integer (SCRIP_i4), intent(out) ::
+     &     intedge              ! edge that is intersected
+
+      logical (SCRIP_logical), intent(out) ::
+     &     lcoinc               ! True if segment is coincident with 
+                                ! a cell edge
+
+      logical (SCRIP_logical), intent(out) ::
+     &     lthresh              ! True if segment crosses threshold
 
 !-----------------------------------------------------------------------
 !
@@ -969,32 +1647,38 @@
 !
 !-----------------------------------------------------------------------
 
-      integer (SCRIP_i4) :: n, next_n, cell, srch_corners
+      integer (SCRIP_i4) :: 
+     &     n, next_n
 
-      integer (SCRIP_i4), save :: 
-     &     last_loc  ! save location when crossing threshold
-
-      logical (SCRIP_logical) :: 
-     &     loutside  ! flags points outside grid
-
-      logical (SCRIP_logical), save :: 
-     &     lthresh = .false.  ! flags segments crossing threshold bndy
+      logical (SCRIP_logical) ::
+     &     found, first
 
       real (SCRIP_r8) ::
-     &     lon1, lon2,       ! local longitude variables for segment
-     &     lat1, lat2,       ! local latitude  variables for segment
-     &     grdlon1, grdlon2, ! local longitude variables for grid cell
-     &     grdlat1, grdlat2, ! local latitude  variables for grid cell
-     &     vec1_lat, vec1_lon, ! vectors and cross products used
-     &     vec2_lat, vec2_lon, ! during grid search
-     &     cross_product, 
-     &     eps, offset,        ! small offset away from intersect
-     &     s1, s2, determ,     ! variables used for linear solve to
-     &     mat1, mat2, mat3, mat4, rhs1, rhs2  ! find intersection
+     &     lon1, lon2,          ! local longitude variables for segment
+     &     lat1, lat2,          ! local latitude  variables for segment
+     &     grdlon1, grdlon2,    ! local longitude variables for grid cell
+     &     grdlat1, grdlat2,    ! local latitude  variables for grid cell
+     &     vec1_lat, vec1_lon,  
+     &     vec2_lat, vec2_lon,  !
+     &     vec3_lat, vec3_lon,  ! vectors and vector products used
+     &     cross_product,       ! during grid search
+     &     dot_product,         !
+     &     lensqr1, lensqr2,    !
+     &     lensqr3,             !
+     &     s1, s2, determ,      
+     &     mat1, mat2,          ! variables used for linear solve to
+     &     mat3, mat4,          ! find intersection
+     &     rhs1, rhs2,          !
+     &     denom,               
+     &     begsegloc(2),        ! local copy of full segment start
+     &     dist2,               ! distance from start pt to intersection pt
+     &     maxdist2,            ! max dist from start pt to any intersection pt
+     &     max_intrsct_lat,     ! latitude of farthest intersection point
+     &     max_intrsct_lon,     ! longitude of farthest intersection point
+     &     minlat, maxlat,      ! min and max latitudes of segment
+     &     minlon, maxlon,      ! min and max longitudes of segment
+     &     tmplat, tmplon
 
-      real (SCRIP_r8), save ::
-     &     intrsct_lat_off, intrsct_lon_off ! lat/lon coords offset 
-                                            ! for next search
 
 !-----------------------------------------------------------------------
 !
@@ -1002,243 +1686,95 @@
 !
 !-----------------------------------------------------------------------
 
-      location = 0
       lcoinc = .false.
-      intrsct_lat = endlat
-      intrsct_lon = endlon
+      lthresh = .false.
+      intedge = 0
+      first = .true.
 
-      if (num_srch_cells == 0) return
-
-      if (beglat > north_thresh .or. beglat < south_thresh) then
-
-        if (lthresh) location = last_loc
-        call pole_intersection(location,
-     &               intrsct_lat,intrsct_lon,lcoinc,lthresh,
-     &               beglat, beglon, endlat, endlon, begseg, lrevers)
-        if (lthresh) then
-          last_loc = location
-          intrsct_lat_off = intrsct_lat
-          intrsct_lon_off = intrsct_lon
-        endif
-        return
-
-      endif
-
-      loutside = .false.
-      if (lbegin) then
-        lat1 = beglat
-        lon1 = beglon
-      else
-        lat1 = intrsct_lat_off
-        lon1 = intrsct_lon_off
-      endif
+      lat1 = beglat
+      lon1 = beglon
       lat2 = endlat
       lon2 = endlon
-      if ((lon2-lon1) > three*pih) then
+
+      ! No edge is allowed to span more than pi radians
+      ! Accordingly transform one or the other end point
+
+      if ((lon2-lon1) > pi) then
         lon2 = lon2 - pi2
-      else if ((lon2-lon1) < -three*pih) then
-        lon2 = lon2 + pi2
+      else if ((lon2-lon1) < -pi) then
+        lon1 = lon1 - pi2
       endif
       s1 = zero
 
 !-----------------------------------------------------------------------
 !
-!     search for location of this segment in ocean grid using cross
-!     product method to determine whether a point is enclosed by a cell
-!
-!-----------------------------------------------------------------------
-
-      call timer_start(12)
-      srch_corners = size(srch_corner_lat,DIM=1)
-      srch_loop: do
-
-        !***
-        !*** if last segment crossed threshold, use that location
-        !***
-
-        if (lthresh) then
-          do cell=1,num_srch_cells
-            if (srch_add(cell) == last_loc) then
-              location = last_loc
-              eps = tiny
-              exit srch_loop
-            endif
-          end do
-        endif
-
-        !***
-        !*** otherwise normal search algorithm
-        !***
-
-        cell_loop: do cell=1,num_srch_cells
-          !print *,'srch cell ',srch_add(cell)
-          !do n=1,srch_corners
-          !  print *,srch_corner_lon(n,cell),srch_corner_lat(n,cell)
-          !end do
-          corner_loop: do n=1,srch_corners
-            next_n = MOD(n,srch_corners) + 1
-
-            !***
-            !*** here we take the cross product of the vector making 
-            !*** up each cell side with the vector formed by the vertex
-            !*** and search point.  if all the cross products are 
-            !*** positive, the point is contained in the cell.
-            !***
-
-            vec1_lat = srch_corner_lat(next_n,cell) - 
-     &                 srch_corner_lat(n     ,cell)
-            vec1_lon = srch_corner_lon(next_n,cell) - 
-     &                 srch_corner_lon(n     ,cell)
-            vec2_lat = lat1 - srch_corner_lat(n,cell)
-            vec2_lon = lon1 - srch_corner_lon(n,cell)
-
-            !***
-            !*** if endpoint coincident with vertex, offset
-            !*** the endpoint
-            !***
-
-            !print *,'endpoint check ', vec2_lon, vec2_lat
-            if (vec2_lat == 0 .and. vec2_lon == 0) then
-              lat1 = lat1 + 1.d-10*(lat2-lat1)
-              lon1 = lon1 + 1.d-10*(lon2-lon1)
-              vec2_lat = lat1 - srch_corner_lat(n,cell)
-              vec2_lon = lon1 - srch_corner_lon(n,cell)
-              !print *,'offsetting endpoint ', lon1, lat1
-            endif
-
-            !***
-            !*** check for 0,2pi crossings
-            !***
-
-            if (vec1_lon >  pi) then
-              vec1_lon = vec1_lon - pi2
-            else if (vec1_lon < -pi) then
-              vec1_lon = vec1_lon + pi2
-            endif
-            if (vec2_lon >  pi) then
-              vec2_lon = vec2_lon - pi2
-            else if (vec2_lon < -pi) then
-              vec2_lon = vec2_lon + pi2
-            endif
-
-            cross_product = vec1_lon*vec2_lat - vec2_lon*vec1_lat
-            !print *,'cross_product1 ', cross_product
-
-            !***
-            !*** if the cross product for a side is zero, the point 
-            !***   lies exactly on the side or the side is degenerate
-            !***   (zero length).  if degenerate, set the cross 
-            !***   product to a positive number.  otherwise perform 
-            !***   another cross product between the side and the 
-            !***   segment itself. 
-            !*** if this cross product is also zero, the line is 
-            !***   coincident with the cell boundary - perform the 
-            !***   dot product and only choose the cell if the dot 
-            !***   product is positive (parallel vs anti-parallel).
-            !***
-
-            if (abs(cross_product) < tiny) then
-              if (vec1_lat /= zero .or. vec1_lon /= zero) then
-                vec2_lat = lat2 - lat1
-                vec2_lon = lon2 - lon1
-
-                if (vec2_lon >  pi) then
-                  vec2_lon = vec2_lon - pi2
-                else if (vec2_lon < -pi) then
-                  vec2_lon = vec2_lon + pi2
-                endif
-
-                cross_product = vec1_lon*vec2_lat - vec2_lon*vec1_lat
-              else
-                cross_product = one
-              endif
-
-              if (abs(cross_product) <= tiny) then
-                lcoinc = .true.
-                cross_product = vec1_lon*vec2_lon + vec1_lat*vec2_lat
-                if (lrevers) cross_product = -cross_product
-              endif
-            endif
-
-            !***
-            !*** if cross product is less than zero, this cell
-            !*** doesn't work
-            !***
-
-            !print *,'cross_product2 ', cross_product
-            if (cross_product < zero) exit corner_loop
-
-          end do corner_loop
-
-          !***
-          !*** if cross products all positive, we found the location
-          !***
-
-          if (n > srch_corners) then
-            location = srch_add(cell)
-
-            !***
-            !*** if the beginning of this segment was outside the
-            !*** grid, invert the segment so the intersection found
-            !*** will be the first intersection with the grid
-            !***
-
-            if (loutside) then
-              lat2 = beglat
-              lon2 = beglon
-              location = 0
-              eps  = -tiny
-            else
-              eps  = tiny
-            endif
-
-            exit srch_loop
-          endif
-
-          !***
-          !*** otherwise move on to next cell
-          !***
-
-        end do cell_loop
-
-        !***
-        !*** if still no cell found, the point lies outside the grid.
-        !***   take some baby steps along the segment to see if any
-        !***   part of the segment lies inside the grid.  
-        !***
-
-        loutside = .true.
-        s1 = s1 + 0.001_SCRIP_r8
-        lat1 = beglat + s1*(endlat - beglat)
-        lon1 = beglon + s1*(lon2   - beglon)
-        !print *,'outside ',lon1, lat1
-
-        !***
-        !*** reached the end of the segment and still outside the grid
-        !*** return no intersection
-        !***
-
-        if (s1 >= one) return
-
-      end do srch_loop
-      call timer_stop(12)
-
-!-----------------------------------------------------------------------
-!
-!     now that a cell is found, search for the next intersection.
 !     loop over sides of the cell to find intersection with side
 !     must check all sides for coincidences or intersections
 !
 !-----------------------------------------------------------------------
 
-      call timer_start(13)
-      intrsct_loop: do n=1,srch_corners
-        next_n = mod(n,srch_corners) + 1
+      if (beglat > north_thresh .or. beglat < south_thresh) then
 
-        grdlon1 = srch_corner_lon(n     ,cell)
-        grdlon2 = srch_corner_lon(next_n,cell)
-        grdlat1 = srch_corner_lat(n     ,cell)
-        grdlat2 = srch_corner_lat(next_n,cell)
+         !*** Special intersection routine for cells near the pole
+         !*** Intersection is done in a transformed space using 
+         !*** multi-segmented representation of the cell
+
+        call pole_intersection(cell_id,ncorners,
+     &               cell_corner_lat,cell_corner_lon,cell_grid_id,
+     &               beglat, beglon, endlat, 
+     &               endlon, begseg, begedge,
+     &               intedge,intrsct_lat,intrsct_lon,
+     &               sinang2,lcoinc,lthresh)
+
+        return
+
+      endif
+
+
+      maxdist2 = -9999999.0 
+
+      begsegloc(1) = begseg(1)
+      begsegloc(2) = begseg(2)
+
+      lthresh = .false.
+      intrsct_loop: do n=1,ncorners
+         next_n = mod(n,ncorners) + 1
+         
+         grdlat1 = cell_corner_lat(n)
+         grdlon1 = cell_corner_lon(n)
+         grdlat2 = cell_corner_lat(next_n)
+         grdlon2 = cell_corner_lon(next_n)
+
+         lensqr2 = (grdlat1-grdlat2)*(grdlat1-grdlat2) +
+     &        (grdlon1-grdlon2)*(grdlon1-grdlon2)
+
+         if (lensqr2 .le. tiny*tiny) cycle       ! degenerate edge
+
+         ! No edge can span more than pi radians
+
+         if (grdlon2-grdlon1 > pi) then
+            grdlon2 = grdlon2 - pi2
+         else if (grdlon2-grdlon1 < -pi) then
+            grdlon1 = grdlon1 - pi2
+         endif
+
+         ! Also the two intersecting segments together 
+         ! cannot span more than 2*pi radians
+
+         minlon = min(lon1,lon2)
+         maxlon = max(grdlon1,grdlon2)
+         if (maxlon-minlon > pi2) then
+            grdlon1 = grdlon1 - pi2
+            grdlon2 = grdlon2 - pi2
+         else
+            minlon = min(grdlon1,grdlon2)
+            maxlon = max(lon1,lon2)
+            if (maxlon-minlon > pi2) then
+               grdlon1 = grdlon1 + pi2
+               grdlon2 = grdlon2 + pi2
+            endif
+         endif     
+         
 
         !***
         !*** set up linear system to solve for intersection
@@ -1251,111 +1787,267 @@
         rhs1 = grdlat1 - lat1
         rhs2 = grdlon1 - lon1
 
-        if (mat3 >  pi) then
-          mat3 = mat3 - pi2
-        else if (mat3 < -pi) then
-          mat3 = mat3 + pi2
-        endif
-        if (mat4 >  pi) then
-          mat4 = mat4 - pi2
-        else if (mat4 < -pi) then
-          mat4 = mat4 + pi2
-        endif
-        if (rhs2 >  pi) then
-          rhs2 = rhs2 - pi2
-        else if (rhs2 < -pi) then
-          rhs2 = rhs2 + pi2
-        endif
-
         determ = mat1*mat4 - mat2*mat3
 
         !***
         !*** if the determinant is zero, the segments are either 
         !***   parallel or coincident.  coincidences were detected 
         !***   above so do nothing.
-        !*** if the determinant is non-zero, solve for the linear 
-        !***   parameters s for the intersection point on each line 
-        !***   segment.
-        !*** if 0<s1,s2<1 then the segment intersects with this side.
-        !***   return the point of intersection (adding a small
-        !***   number so the intersection is off the grid line).
-        !***
 
-        if (abs(determ) > 1.e-30) then
+        if (abs(determ) > tiny*tiny) then
+
+          !*** if the determinant is non-zero, solve for the linear 
+          !***   parameters s for the intersection point on each line 
+          !***   segment.
+          !*** if 0<s1,s2<1 then the segment intersects with this side.
+          !***   return the point of intersection (adding a small
+          !***   number so the intersection is off the grid line).
+          !***
 
           s1 = (rhs1*mat4 - mat2*rhs2)/determ
           s2 = (mat1*rhs2 - rhs1*mat3)/determ
 
           if (s2 >= zero .and. s2 <= one .and.
-     &        s1 >  zero. and. s1 <= one) then
+     &        s1 >  zero .and. s1 <= one) then
 
-            !***
-            !*** recompute intersection based on full segment
-            !*** so intersections are consistent for both sweeps
-            !***
+             !***
+             !*** recompute intersection based on full segment
+             !*** so intersections are consistent for both sweeps
+             !***
 
-            if (.not. loutside) then
-              mat1 = lat2 - begseg(1)
-              mat3 = lon2 - begseg(2)
-              rhs1 = grdlat1 - begseg(1)
-              rhs2 = grdlon1 - begseg(2)
-            else
-              mat1 = begseg(1) - endlat
-              mat3 = begseg(2) - endlon
-              rhs1 = grdlat1 - endlat
-              rhs2 = grdlon1 - endlon
-            endif
+             if (lon2-begsegloc(2) > pi) then
+                lon2 = lon2 - pi2
+             else if (lon2-begsegloc(2) < -pi) then
+                begsegloc(2) = begsegloc(2) - pi2
+             endif
 
-            if (mat3 >  pi) then
-              mat3 = mat3 - pi2
-            else if (mat3 < -pi) then
-              mat3 = mat3 + pi2
-            endif
-            if (rhs2 >  pi) then
-              rhs2 = rhs2 - pi2
-            else if (rhs2 < -pi) then
-              rhs2 = rhs2 + pi2
-            endif
 
-            determ = mat1*mat4 - mat2*mat3
+            ! Also the two intersecting segments together 
+            ! cannot span more than 2*pi radians
 
-            !***
-            !*** sometimes due to roundoff, the previous 
-            !*** determinant is non-zero, but the lines
-            !*** are actually coincident.  if this is the
-            !*** case, skip the rest.
-            !***
+             minlon = min(begsegloc(2),lon2)
+             maxlon = max(grdlon1,grdlon2)
+             if (maxlon-minlon > pi2) then
+                grdlon1 = grdlon1 - pi2
+                grdlon2 = grdlon2 - pi2
+             else
+                minlon = min(grdlon1,grdlon2)
+                maxlon = max(begsegloc(2),lon2)
+                if (maxlon-minlon > pi2) then
+                   grdlon1 = grdlon1 + pi2
+                   grdlon2 = grdlon2 + pi2
+                endif
+             endif
 
-            if (determ /= zero) then
-              s1 = (rhs1*mat4 - mat2*rhs2)/determ
-              s2 = (mat1*rhs2 - rhs1*mat3)/determ
 
-              offset = s1 + eps/determ
-              if (offset > one) offset = one
+             mat1 = lat2 - begsegloc(1)
+             mat3 = lon2 - begsegloc(2)
+             rhs1 = grdlat1 - begsegloc(1)
+             rhs2 = grdlon1 - begsegloc(2)
 
-              if (.not. loutside) then
-                intrsct_lat = begseg(1) + mat1*s1
-                intrsct_lon = begseg(2) + mat3*s1
-                intrsct_lat_off = begseg(1) + mat1*offset
-                intrsct_lon_off = begseg(2) + mat3*offset
-              else
-                intrsct_lat = endlat + mat1*s1
-                intrsct_lon = endlon + mat3*s1
-                intrsct_lat_off = endlat + mat1*offset
-                intrsct_lon_off = endlon + mat3*offset
-              endif
-              exit intrsct_loop
-            endif
+             determ = mat1*mat4 - mat2*mat3
 
+             !***
+             !*** sometimes due to roundoff, the previous 
+             !*** determinant is non-zero, but the lines
+             !*** are actually coincident.  if this is the
+             !*** case, skip the rest.
+             !***
+
+             if (determ /= zero) then
+                s1 = (rhs1*mat4 - mat2*rhs2)/determ
+                s2 = (mat1*rhs2 - rhs1*mat3)/determ
+
+                intrsct_lat = begsegloc(1) + mat1*s1
+                intrsct_lon = begsegloc(2) + mat3*s1
+
+                if (intrsct_lon < 0.0) then
+                   intrsct_lon = intrsct_lon + pi2
+                else if (intrsct_lon > pi2) then
+                   intrsct_lon = intrsct_lon - pi2
+                endif
+
+                !***
+                !*** Make sure the intersection point is not within
+                !*** tolerance of the starting point
+                !***
+
+                if (first) then
+                   max_intrsct_lat = intrsct_lat
+                   max_intrsct_lon = intrsct_lon
+
+                   vec1_lat = intrsct_lat-beglat
+                   vec1_lon = intrsct_lon-beglon
+                   if (vec1_lon > pi) then
+                      vec1_lon = vec1_lon - pi2
+                   else if (vec1_lon < -pi) then
+                      vec1_lon = vec1_lon + pi2
+                   endif
+
+                   maxdist2 = vec1_lat*vec1_lat + vec1_lon*vec1_lon
+                   dist2 = maxdist2
+                   
+                   denom = (mat1*mat1+mat2*mat2)*(mat3*mat3+mat4*mat4)
+                   sinang2 = determ*determ/denom
+                   intedge = n
+                   first = .false.
+                else                   
+                   vec1_lat = intrsct_lat-beglat
+                   vec1_lon = intrsct_lon-beglon
+                   if (vec1_lon > pi) then
+                      vec1_lon = vec1_lon - pi2
+                   else if (vec1_lon < -pi) then
+                      vec1_lon = vec1_lon + pi2
+                   endif
+
+                   dist2 = vec1_lat*vec1_lat + vec1_lon*vec1_lon
+
+                   if (dist2 > maxdist2) then
+                      if (begedge .eq. 0 .or. begedge .ne. n) then
+                         max_intrsct_lat = intrsct_lat
+                         max_intrsct_lon = intrsct_lon
+                         maxdist2 = dist2
+                         
+                         denom = 
+     &                       (mat1*mat1+mat2*mat2)*(mat3*mat3+mat4*mat4)
+                         sinang2 = determ*determ/denom
+                         intedge = n
+                      endif
+                   endif
+                endif
+
+             else
+                print *, 'DEBUG: zero determ'
+                stop
+             endif
+             
           endif
-        endif
 
-        !***
-        !*** no intersection this side, move on to next side
-        !***
+       else
+
+          !***
+          !*** Coincident lines or parallel lines
+          !*** 
+
+          cross_product = mat2*rhs2 - mat4*rhs1
+
+          !***
+          !*** If area of triangle formed by endlat,endlon and
+          !*** the gridline is negligible then the lines are coincident
+          !***
+
+          if (abs(cross_product) < tiny) then
+
+             dot_product = mat1*(-mat2) + mat3*(-mat4)
+
+             lensqr1 = mat1*mat1 + mat3*mat3 ! length sqrd of input segment
+
+             if (dot_product < zero) then
+
+                !***
+                !*** Segments oriented in the same direction
+                !***
+             
+
+                tmplat = grdlat2
+                tmplon = grdlon2
+                grdlat2 = grdlat1
+                grdlon2 = grdlon1
+                grdlat1 = tmplat
+                grdlon1 = tmplon
+
+             endif
+
+
+             vec2_lat = grdlat1 - lat1
+             vec2_lon = grdlon1 - lon1
+             if (vec2_lon >  pi) vec2_lon = vec2_lon - pi2
+             if (vec2_lon < -pi) vec2_lon = vec2_lon + pi2
+
+             lensqr2 = vec2_lat*vec2_lat + vec2_lon*vec2_lon
+
+             if (vec2_lat*mat1 + vec2_lon*mat3 < 0) then
+                lensqr2 = -lensqr2
+             endif
+
+             vec3_lat = grdlat2 - lat1
+             vec3_lon = grdlon2 - lon1
+             if (vec3_lon >  pi) vec3_lon = vec3_lon - pi2
+             if (vec3_lon < -pi) vec3_lon = vec3_lon + pi2             
+
+             lensqr3 = (vec3_lat*vec3_lat+vec3_lon*vec3_lon)
+
+             if (vec3_lat*mat1 + vec3_lon*mat3 < 0) then
+                lensqr3 = -lensqr3
+             endif
+             
+             found = .false.
+
+             if (lensqr2 > 0) then
+                if (lensqr2 <= lensqr1) then
+                   intrsct_lat = grdlat1
+                   intrsct_lon = grdlon1
+                   found = .true.
+                endif
+             else
+                if (lensqr3 > 0) then
+                   if (lensqr3 > lensqr1) then
+                      intrsct_lat = lat2
+                      intrsct_lon = lon2
+                      found = .true.
+                   else
+                      intrsct_lat = grdlat2
+                      intrsct_lon = grdlon2
+                      found = .true.
+                   endif
+                endif
+             endif
+
+             if (found) then
+
+                dist2 = (intrsct_lat-beglat)*(intrsct_lat-beglat)+
+     &               (intrsct_lon-beglon)*(intrsct_lon-beglon)
+
+               !*** Coincidence intersection always wins
+
+                max_intrsct_lat = intrsct_lat
+                max_intrsct_lon = intrsct_lon
+                maxdist2 = dist2
+                sinang2 = 0
+                intedge = n
+                lcoinc = .true.
+
+                exit intrsct_loop
+             endif
+                
+          endif
+
+       endif
+
+       !*** restore lon1 and lon2 in case it got modified
+         
+       lon1 = beglon
+       lon2 = endlon
+       begsegloc(2) = begseg(2)
+       if ((lon2-lon1) > pi) then
+          lon2 = lon2 - pi2
+       else if ((lon2-lon1) < -pi) then
+          lon1 = lon1 - pi2
+       endif
 
       end do intrsct_loop
-      call timer_stop(13)
+
+      if (intedge .eq. 0) then
+         return
+      else
+         if (maxdist2 < 1e6*tiny*tiny) then
+            intedge = 0
+            return
+         else
+            intrsct_lat = max_intrsct_lat
+            intrsct_lon = max_intrsct_lon
+         endif
+      endif
 
 !-----------------------------------------------------------------------
 !
@@ -1370,22 +2062,29 @@
         if (intrsct_lat < north_thresh .or. intrsct_lat > south_thresh)
      &      lthresh = .false.
       else if (lat1 > zero .and. intrsct_lat > north_thresh) then
-        intrsct_lat = north_thresh + tiny
-        intrsct_lat_off = north_thresh + eps*mat1
-        s1 = (intrsct_lat - begseg(1))/mat1
-        intrsct_lon     = begseg(2) + s1*mat3
-        intrsct_lon_off = begseg(2) + (s1+eps)*mat3
-        last_loc = location
+!        intrsct_lat = north_thresh + tiny
+        intrsct_lat = north_thresh
+        mat1 = lat2 - begsegloc(1)
+        mat3 = lon2 - begsegloc(2)
+        s1 = (intrsct_lat - begsegloc(1))/mat1
+        intrsct_lon     = begsegloc(2) + s1*mat3
         lthresh = .true.
       else if (lat1 < zero .and. intrsct_lat < south_thresh) then
-        intrsct_lat = south_thresh - tiny
-        intrsct_lat_off = south_thresh + eps*mat1
-        s1 = (intrsct_lat - begseg(1))/mat1
-        intrsct_lon     = begseg(2) + s1*mat3
-        intrsct_lon_off = begseg(2) + (s1+eps)*mat3
-        last_loc = location
+!        intrsct_lat = south_thresh - tiny
+        intrsct_lat = south_thresh
+        mat1 = lat2 - begsegloc(1)
+        mat3 = lon2 - begsegloc(2)
+        s1 = (intrsct_lat - begsegloc(1))/mat1
+        intrsct_lon     = begsegloc(2) + s1*mat3
         lthresh = .true.
       endif
+
+      if (intrsct_lon < 0.0) then
+         intrsct_lon = intrsct_lon + pi2
+      else if (intrsct_lon > pi2) then
+         intrsct_lon = intrsct_lon - pi2
+      endif
+
 
 !-----------------------------------------------------------------------
 
@@ -1393,16 +2092,21 @@
 
 !***********************************************************************
 
-      subroutine pole_intersection(location,
-     &                 intrsct_lat,intrsct_lon,lcoinc,lthresh,
-     &                 beglat, beglon, endlat, endlon, begseg, lrevers)
+
+      subroutine pole_intersection(location,ncorners,
+     &                 cell_corners_lat,cell_corners_lon,cell_grid_id,
+     &                 beglat, beglon, endlat, endlon, begseg, begedge,
+     &                 intedge, intrsct_lat, intrsct_lon,
+     &                 sinang2, lcoinc, lthresh)
 
 !-----------------------------------------------------------------------
 !
-!     this routine is identical to the intersection routine except
-!     that a coordinate transformation (using a Lambert azimuthal
-!     equivalent projection) is performed to treat polar cells more
-!     accurately.
+!     Special intersection routine for line segment in cell close to poles
+!     A coordinate transformation (using a Lambert azimuthal
+!     equivalent projection) is performed to perform the intersection
+!     Also, since a straight line in lat-lon space is a curve in this
+!     transformed space, we represent each edge of the cell as having 
+!     'npseg' segments whose endpoints are mapped using the Lambert projection
 !
 !-----------------------------------------------------------------------
 
@@ -1412,15 +2116,28 @@
 !
 !-----------------------------------------------------------------------
 
+      integer (SCRIP_i4), intent(in) ::
+     &     location             ! cell to intersect segment with
+
+      integer (SCRIP_i4), intent(in) ::
+     &     ncorners             ! Number of cell corners
+
+      real    (SCRIP_r8), dimension(ncorners), intent(in) ::
+     &     cell_corners_lat,    ! Cell corner coordinates
+     &     cell_corners_lon
+
+      integer (SCRIP_i4), intent(in) ::
+     &     cell_grid_id         ! which grid is the cell from?
+
       real (SCRIP_r8), intent(in) :: 
-     &     beglat, beglon,  ! beginning lat/lon endpoints for segment
-     &     endlat, endlon   ! ending    lat/lon endpoints for segment
+     &     beglat, beglon,      ! beginning lat/lon coords for segment
+     &     endlat, endlon       ! ending    lat/lon coords for segment
 
       real (SCRIP_r8), dimension(2), intent(inout) :: 
-     &     begseg ! begin lat/lon of full segment
+     &     begseg               ! begin lat/lon of full segment
 
-      logical (SCRIP_logical), intent(in) ::
-     &        lrevers   ! flag true if segment integrated in reverse
+      integer (SCRIP_i4), intent(in) ::
+     &     begedge              ! edge on which segment start is on (can be 0)
 
 !-----------------------------------------------------------------------
 !
@@ -1428,19 +2145,24 @@
 !
 !-----------------------------------------------------------------------
 
-      integer (SCRIP_i4), intent(inout) ::
-     &        location  ! address in destination array containing this
-                        ! segment -- also may contain last location on
-                        ! entry
-
-      logical (SCRIP_logical), intent(out) ::
-     &        lcoinc    ! flag segment coincident with grid line
-
-      logical (SCRIP_logical), intent(inout) ::
-     &        lthresh   ! flag segment crossing threshold boundary
+      integer (SCRIP_i4), intent(out) ::
+     &     intedge              ! Edge that segment intersects
 
       real (SCRIP_r8), intent(out) ::
-     &     intrsct_lat, intrsct_lon ! lat/lon coords of next intersect.
+     &     intrsct_lat,         ! lat/lon coords of intersection
+     &     intrsct_lon          
+
+      real (SCRIP_r8), intent(out) ::
+     &     sinang2              ! square of sine of angle between
+                                ! intersecting line segments
+
+      logical (SCRIP_logical), intent(out) ::
+     &     lcoinc               ! True if segment is coincident with 
+                                ! a cell edge
+
+      logical (SCRIP_logical), intent(inout) ::
+     &     lthresh              ! True if segment crosses threshold 
+
 
 !-----------------------------------------------------------------------
 !
@@ -1448,37 +2170,47 @@
 !
 !-----------------------------------------------------------------------
 
-      integer (SCRIP_i4) :: n, next_n, cell, srch_corners
+      integer (SCRIP_i4) :: 
+     &     n, n1, next_n, prev_n,
+     &     it, i, j, 
+     &     ncorners2, 
+     &     intedge1
 
-      logical (SCRIP_logical) :: loutside ! flags points outside grid
+      logical (SCRIP_logical) :: 
+     &     first, 
+     &     found
 
-      real (SCRIP_r8) :: pi4, rns, ! north/south conversion
-     &     x1, x2,       ! local x variables for segment
-     &     y1, y2,       ! local y variables for segment
-     &     begx, begy,   ! beginning x,y variables for segment
-     &     endx, endy,   ! beginning x,y variables for segment
-     &     begsegx, begsegy,   ! beginning x,y variables for segment
-     &     grdx1, grdx2, ! local x variables for grid cell
-     &     grdy1, grdy2, ! local y variables for grid cell
-     &     vec1_y, vec1_x, ! vectors and cross products used
-     &     vec2_y, vec2_x, ! during grid search
-     &     cross_product, eps, ! eps=small offset away from intersect
-     &     s1, s2, determ,     ! variables used for linear solve to
-     &     mat1, mat2, mat3, mat4, rhs1, rhs2  ! find intersection
-
-      real (SCRIP_r8), dimension(:,:), allocatable ::
-     &     srch_corner_x,  ! x of each corner of srch cells
-     &     srch_corner_y   ! y of each corner of srch cells
-
-      !***
-      !*** save last intersection to avoid roundoff during coord
-      !*** transformation
-      !***
-
-      logical (SCRIP_logical), save :: luse_last = .false.
-
-      real (SCRIP_r8), save :: 
-     &     intrsct_x, intrsct_y  ! x,y for intersection
+      real (SCRIP_r8) :: 
+     &     pi4, rns,            ! north/south conversion
+     &     x1, x2,              ! local x variables for segment
+     &     y1, y2,              ! local y variables for segment
+     &     grdx1, grdx2,        ! local x variables for grid cell
+     &     grdy1, grdy2,        ! local y variables for grid cell
+     &     grdlat1, grdlat2,    ! latitude vars for grid cell
+     &     grdlon1, grdlon2,    ! longitude vars for grid cell
+     &     vec1_y, vec1_x,      !
+     &     vec2_y, vec2_x,      ! vectors and cross products used
+     &     vec3_y, vec3_x,      ! 
+     &     vec1_lat, vec1_lon,  !
+     &     vec2_lat, vec2_lon,  !
+     &     vec3_lon,            !
+     &     cross_product,       !
+     &     dot_product,         !
+     &     s1, s2, determ,      ! variables used for linear solve to
+     &     mat1, mat2,          !
+     &     mat3, mat4,          ! find intersection
+     &     rhs1, rhs2,          !
+     &     denom,               !
+     &     intrsct_x, intrsct_y, ! intersection coordinates in transformed space
+     &     max_intrsct_lat = pi,   ! intersection point at max distance
+     &     max_intrsct_lon = 4*pi, ! from the start point
+     &     dist2,               ! dist of intersection point from start point
+     &     maxdist2,            ! max dist of intersection point from start pnt
+     &     lensqr1, lensqr2,    ! various segment lengths
+     &     lensqr3,             !
+     &     tmpx, tmpy, 
+     &     tmplat, tmplon,
+     &     ldummy
 
       !***
       !*** variables necessary if segment manages to hit pole
@@ -1490,18 +2222,22 @@
       real (SCRIP_r8), save :: 
      &     avoid_pole_offset = tiny  ! endpoint offset to avoid pole
 
+      real (SCRIP_r8), dimension(npseg*ncorners) ::
+     &     cell_corners_lat_loc, ! Lat/Lon coordinates of multi-segmented 
+     &     cell_corners_lon_loc  ! version of cell 
+
+      
+
 !-----------------------------------------------------------------------
 !
 !     initialize defaults, flags, etc.
 !
 !-----------------------------------------------------------------------
 
-      if (.not. lthresh) location = 0
-      lcoinc = .false.
-      intrsct_lat = endlat
-      intrsct_lon = endlon
+      intedge = 0
+      first = .true.
+      maxdist2 = -999999.00
 
-      loutside = .false.
       s1 = zero
 
 !-----------------------------------------------------------------------
@@ -1509,11 +2245,6 @@
 !     convert coordinates
 !
 !-----------------------------------------------------------------------
-
-      allocate(srch_corner_x(size(srch_corner_lat,DIM=1),
-     &                       size(srch_corner_lat,DIM=2)),
-     &         srch_corner_y(size(srch_corner_lat,DIM=1),
-     &                       size(srch_corner_lat,DIM=2)))
 
       if (beglat > zero) then
         pi4 = quart*pi
@@ -1523,182 +2254,14 @@
         rns = -one
       endif
 
-      if (luse_last) then
-        x1 = intrsct_x
-        y1 = intrsct_y
-      else
-        x1 = rns*two*sin(pi4 - half*beglat)*cos(beglon)
-        y1 =     two*sin(pi4 - half*beglat)*sin(beglon)
-        luse_last = .true.
-      endif
+      x1 = rns*two*sin(pi4 - half*beglat)*cos(beglon)
+      y1 =     two*sin(pi4 - half*beglat)*sin(beglon)
       x2 = rns*two*sin(pi4 - half*endlat)*cos(endlon)
       y2 =     two*sin(pi4 - half*endlat)*sin(endlon)
-      srch_corner_x = rns*two*sin(pi4 - half*srch_corner_lat)*
-     &                        cos(srch_corner_lon)
-      srch_corner_y =     two*sin(pi4 - half*srch_corner_lat)*
-     &                        sin(srch_corner_lon)
 
-      begx = x1
-      begy = y1
-      endx = x2
-      endy = y2
-      begsegx = rns*two*sin(pi4 - half*begseg(1))*cos(begseg(2))
-      begsegy =     two*sin(pi4 - half*begseg(1))*sin(begseg(2))
-      intrsct_x = endx
-      intrsct_y = endy
+      intrsct_x = x2
+      intrsct_y = y2
 
-!-----------------------------------------------------------------------
-!
-!     search for location of this segment in ocean grid using cross
-!     product method to determine whether a point is enclosed by a cell
-!
-!-----------------------------------------------------------------------
-
-      call timer_start(12)
-      srch_corners = size(srch_corner_lat,DIM=1)
-      srch_loop: do
-
-        !***
-        !*** if last segment crossed threshold, use that location
-        !***
-
-        if (lthresh) then
-          do cell=1,num_srch_cells
-            if (srch_add(cell) == location) then
-              eps = tiny
-              exit srch_loop
-            endif
-          end do
-        endif
-
-        !***
-        !*** otherwise normal search algorithm
-        !***
-
-        cell_loop: do cell=1,num_srch_cells
-          corner_loop: do n=1,srch_corners
-            next_n = MOD(n,srch_corners) + 1
-
-            !***
-            !*** here we take the cross product of the vector making 
-            !*** up each cell side with the vector formed by the vertex
-            !*** and search point.  if all the cross products are 
-            !*** positive, the point is contained in the cell.
-            !***
-
-            vec1_x = srch_corner_x(next_n,cell) - 
-     &               srch_corner_x(n     ,cell)
-            vec1_y = srch_corner_y(next_n,cell) - 
-     &               srch_corner_y(n     ,cell)
-            vec2_x = x1 - srch_corner_x(n,cell)
-            vec2_y = y1 - srch_corner_y(n,cell)
-
-            !***
-            !*** if endpoint coincident with vertex, offset
-            !*** the endpoint
-            !***
-
-            if (vec2_x == 0 .and. vec2_y == 0) then
-              x1 = x1 + 1.d-10*(x2-x1)
-              y1 = y1 + 1.d-10*(y2-y1)
-              vec2_x = x1 - srch_corner_x(n,cell)
-              vec2_y = y1 - srch_corner_y(n,cell)
-            endif
-
-            cross_product = vec1_x*vec2_y - vec2_x*vec1_y
-
-            !***
-            !*** if the cross product for a side is zero, the point 
-            !***   lies exactly on the side or the length of a side
-            !***   is zero.  if the length is zero set det > 0.
-            !***   otherwise, perform another cross 
-            !***   product between the side and the segment itself. 
-            !*** if this cross product is also zero, the line is 
-            !***   coincident with the cell boundary - perform the 
-            !***   dot product and only choose the cell if the dot 
-            !***   product is positive (parallel vs anti-parallel).
-            !***
-
-            if (cross_product == zero) then
-              if (vec1_x /= zero .or. vec1_y /= 0) then
-                vec2_x = x2 - x1
-                vec2_y = y2 - y1
-                cross_product = vec1_x*vec2_y - vec2_x*vec1_y
-              else
-                cross_product = one
-              endif
-
-              if (cross_product == zero) then
-                lcoinc = .true.
-                cross_product = vec1_x*vec2_x + vec1_y*vec2_y
-                if (lrevers) cross_product = -cross_product
-              endif
-            endif
-
-            !***
-            !*** if cross product is less than zero, this cell
-            !*** doesn't work
-            !***
-
-            if (cross_product < zero) exit corner_loop
-
-          end do corner_loop
-
-          !***
-          !*** if cross products all positive, we found the location
-          !***
-
-          if (n > srch_corners) then
-            location = srch_add(cell)
-
-            !***
-            !*** if the beginning of this segment was outside the
-            !*** grid, invert the segment so the intersection found
-            !*** will be the first intersection with the grid
-            !***
-
-            if (loutside) then
-              x2 = begx
-              y2 = begy
-              location = 0
-              eps  = -tiny
-            else
-              eps  = tiny
-            endif
-
-            exit srch_loop
-          endif
-
-          !***
-          !*** otherwise move on to next cell
-          !***
-
-        end do cell_loop
-
-        !***
-        !*** if no cell found, the point lies outside the grid.
-        !***   take some baby steps along the segment to see if any
-        !***   part of the segment lies inside the grid.  
-        !***
-
-        loutside = .true.
-        s1 = s1 + 0.001_SCRIP_r8
-        x1 = begx + s1*(x2 - begx)
-        y1 = begy + s1*(y2 - begy)
-
-        !***
-        !*** reached the end of the segment and still outside the grid
-        !*** return no intersection
-        !***
-
-        if (s1 >= one) then
-          deallocate(srch_corner_x, srch_corner_y)
-          luse_last = .false.
-          return
-        endif
-
-      end do srch_loop
-      call timer_stop(12)
 
 !-----------------------------------------------------------------------
 !
@@ -1708,14 +2271,166 @@
 !
 !-----------------------------------------------------------------------
 
-      call timer_start(13)
-      intrsct_loop: do n=1,srch_corners
-        next_n = mod(n,srch_corners) + 1
 
-        grdy1 = srch_corner_y(n     ,cell)
-        grdy2 = srch_corner_y(next_n,cell)
-        grdx1 = srch_corner_x(n     ,cell)
-        grdx2 = srch_corner_x(next_n,cell)
+      if (abs(x1) .le. tiny .and. abs(y1) .le. tiny .and. 
+     &     abs(x2) .le. tiny .and. abs(y2) .le. tiny) then
+
+         !***
+         !*** The segment is a polar segment which is degenerate
+         !*** in the transformed Lambert space. Find out which
+         !*** cell edge it is coincident with and find the 
+         !*** point where the segment exits this cell (if at all)
+         !*** NOTE 1: THIS MUST BE DONE IN LAT-LON SPACE
+         !*** NOTE 2: CODE RELEVANT ONLY FOR INTEGRATION W.R.T. phi
+         !***
+
+         intrsct_loop1: do n = 1, ncorners
+           next_n = mod(n,ncorners) + 1
+           
+           grdlat1  = cell_corners_lat(n)
+           grdlon1  = cell_corners_lon(n)
+           grdlat2  = cell_corners_lat(next_n)
+           grdlon2  = cell_corners_lon(next_n)
+           grdx1 = rns*two*sin(pi4 - half*grdlat1)*cos(grdlon1)
+           grdy1 =     two*sin(pi4 - half*grdlat1)*sin(grdlon1)
+           grdx2 = rns*two*sin(pi4 - half*grdlat2)*cos(grdlon2)
+           grdy2 =     two*sin(pi4 - half*grdlat2)*sin(grdlon2)
+          
+           if (abs(grdx1) .le. tiny .and. abs(grdy1) .le. tiny .and.
+     &          abs(grdx2) .le. tiny .and. abs(grdy2) .le. tiny) then
+              
+              !***
+              !*** Found polar segment in cell
+              !***
+
+              vec1_lon = endlon-beglon
+              if (vec1_lon .gt.  pi) vec1_lon = vec1_lon - pi2
+              if (vec1_lon .lt. -pi) vec1_lon = vec1_lon + pi2
+
+              vec2_lon = grdlon2-grdlon1
+              if (vec2_lon .gt.  pi) vec2_lon = vec2_lon - pi2
+              if (vec2_lon .lt. -pi) vec2_lon = vec2_lon + pi2
+
+              if (vec1_lon*vec2_lon .lt. 0) then
+
+                 !*** switch coordinates to simplify logic below
+
+                 tmplat = grdlat2
+                 tmplon = grdlon2
+                 grdlat2 = grdlat1
+                 grdlon2 = grdlon1
+                 grdlat1 = tmplat
+                 grdlon1 = tmplon                 
+              endif
+
+              vec2_lon = grdlon1 - beglon
+              if (vec2_lon .gt. pi) vec2_lon = vec2_lon - pi2
+              if (vec2_lon .lt. -pi) vec2_lon = vec2_lon + pi2
+
+              vec3_lon = grdlon2 - beglon
+              if (vec3_lon .gt. pi) vec3_lon = vec3_lon - pi2
+              if (vec3_lon .lt. -pi) vec3_lon = vec3_lon + pi2
+
+              found = .false.
+
+              if (vec2_lon*vec1_lon > 0) then
+                 if (abs(vec3_lon) < abs(vec1_lon)) then
+                    intrsct_lon = grdlon2
+                    found = .true.
+                 else if (abs(vec2_lon) < abs(vec1_lon)) then
+                    intrsct_lon = grdlon1   ! Shouldn't be here
+                    found = .true.
+                 endif
+              else
+                 if (vec3_lon*vec1_lon > 0) then
+                    if (abs(vec3_lon) < abs(vec1_lon)) then
+                       intrsct_lon = grdlon2
+                       found = .true.
+                    endif
+                 endif
+
+              endif
+
+              if (found) then
+                 intrsct_lat = endlat
+                 lcoinc = .true.
+                 sinang2 = 0.0
+                 intedge = n
+                 exit intrsct_loop1
+              endif
+ 
+           endif
+         
+        end do intrsct_loop1
+
+        return
+      endif
+
+      
+
+
+      !****
+      !**** General intersection
+      !****
+
+
+
+      !***
+      !*** Construct multi-segmented version of the cell
+      !***
+
+      i = 0
+      do n = ncorners, 1, -1
+         i = i+1
+         n1 = mod(n,ncorners)+1         
+         cell_corners_lat_loc(i) = cell_corners_lat(n1)
+         cell_corners_lon_loc(i) = cell_corners_lon(n1)
+
+         prev_n = n1-1
+         if (prev_n .eq. 0) prev_n = ncorners ! how do we do (j-1+n)%n in F90
+
+         vec1_lat = cell_corners_lat(prev_n)-cell_corners_lat(n1)
+         vec1_lon = cell_corners_lon(prev_n)-cell_corners_lon(n1)
+         if (vec1_lon > pi) then
+            vec1_lon = vec1_lon - pi2
+         else if (vec1_lon < -pi) then
+            vec1_lon = vec1_lon + pi2
+         endif
+
+         do j = 1, npseg-1
+            i = i+1         
+            cell_corners_lat_loc(i) = 
+     &           cell_corners_lat(n1) + j*vec1_lat/npseg
+            cell_corners_lon_loc(i) =
+     &           cell_corners_lon(n1) + j*vec1_lon/npseg
+         enddo
+      enddo
+
+      ncorners2 = npseg*ncorners
+
+
+
+      !***
+      !*** Now intersect segment with multi-segmented version of cell
+      !***
+
+
+      intrsct_loop2: do n= 1, ncorners2
+
+        next_n = mod(n,ncorners2) + 1
+
+        grdlat1  = cell_corners_lat_loc(n)
+        grdlon1  = cell_corners_lon_loc(n)
+        grdlat2  = cell_corners_lat_loc(next_n)
+        grdlon2  = cell_corners_lon_loc(next_n)
+        grdx1 = rns*two*sin(pi4 - half*grdlat1)*cos(grdlon1)
+        grdy1 =     two*sin(pi4 - half*grdlat1)*sin(grdlon1)
+        grdx2 = rns*two*sin(pi4 - half*grdlat2)*cos(grdlon2)
+        grdy2 =     two*sin(pi4 - half*grdlat2)*sin(grdlon2)
+
+        if ((grdx1-grdx2)*(grdx1-grdx2)+(grdy1-grdy2)*(grdy1-grdy2) .le.
+     &       tiny*tiny) cycle
+
 
         !***
         !*** set up linear system to solve for intersection
@@ -1733,7 +2448,7 @@
         !***
         !*** if the determinant is zero, the segments are either 
         !***   parallel or coincident or one segment has zero length.  
-        !***   coincidences were detected above so do nothing.
+
         !*** if the determinant is non-zero, solve for the linear 
         !***   parameters s for the intersection point on each line 
         !***   segment.
@@ -1744,102 +2459,294 @@
 
         if (abs(determ) > 1.e-30) then
 
-          s1 = (rhs1*mat4 - mat2*rhs2)/determ
-          s2 = (mat1*rhs2 - rhs1*mat3)/determ
+           s1 = (rhs1*mat4 - mat2*rhs2)/determ
+           s2 = (mat1*rhs2 - rhs1*mat3)/determ
+           
+           if (s2 >= zero .and. s2 <= one .and.
+     &          s1 >  tiny .and. s1 <= one) then
 
-          if (s2 >= zero .and. s2 <= one .and.
-     &        s1 >  zero. and. s1 <= one) then
-
-            !***
-            !*** recompute intersection using entire segment
-            !*** for consistency between sweeps
-            !***
-
-            if (.not. loutside) then
-              mat1 = x2 - begsegx
-              mat3 = y2 - begsegy
-              rhs1 = grdx1 - begsegx
-              rhs2 = grdy1 - begsegy
-            else 
-              mat1 = x2 - endx
-              mat3 = y2 - endy
-              rhs1 = grdx1 - endx
-              rhs2 = grdy1 - endy
-            endif
-
-            determ = mat1*mat4 - mat2*mat3
-
-            !***
-            !*** sometimes due to roundoff, the previous 
-            !*** determinant is non-zero, but the lines
-            !*** are actually coincident.  if this is the
-            !*** case, skip the rest.
-            !***
-
-            if (determ /= zero) then
-              s1 = (rhs1*mat4 - mat2*rhs2)/determ
-              s2 = (mat1*rhs2 - rhs1*mat3)/determ
-
-              if (.not. loutside) then
-                intrsct_x = begsegx + s1*mat1
-                intrsct_y = begsegy + s1*mat3
-              else 
-                intrsct_x = endx + s1*mat1
-                intrsct_y = endy + s1*mat3
-              endif
-
+              intrsct_x = x1 + s1*mat1
+              intrsct_y = y1 + s1*mat3
+              
               !***
               !*** convert back to lat/lon coordinates
               !***
 
-              intrsct_lon = rns*atan2(intrsct_y,intrsct_x)
+              if (abs(intrsct_x) .gt. tiny .or.
+     &             abs(intrsct_y) .gt. tiny) then
+
+                 intrsct_lon = rns*atan2(intrsct_y,intrsct_x)
+
+              else
+
+                 !*** Degenerate case - we don't have a good way of
+                 !*** finding out what the longitude corresponding
+                 !*** to a (0,0) intersection is. So we take the 
+                 !*** the intersection as one of the two endpoints of
+                 !*** the grid segment
+                 
+                 if (abs(abs(grdlat1)-pih) .lt. 1e-5 .and.
+     &                abs(abs(grdlat2)-pih) .lt. 1e-5) then
+
+                    !*** Both endpoints of the grid segment are at the pole
+                    !*** but at different longitudes
+
+                    vec1_lat = grdlat1-beglat
+                    vec1_lon = grdlon1-beglon
+                    if (vec1_lon > pi) then
+                       vec1_lon = vec1_lon - pi2
+                    else if (vec1_lon < -pi) then
+                       vec1_lon = vec1_lon + pi2
+                    endif
+                    dist2 = vec1_lat*vec1_lat + vec1_lon*vec1_lon
+
+                    vec2_lat = grdlat2-beglat
+                    vec2_lon = grdlon2-beglon
+                    if (vec2_lon > pi) then
+                       vec2_lon = vec2_lon - pi2
+                    else if (vec2_lon < -pi) then
+                       vec2_lon = vec2_lon + pi2
+                    endif
+                    
+                    !*** pick the endpoint of the grid segment that is
+                    !*** farthest from the beg point of the segment
+
+                    if ((vec1_lat*vec1_lat + vec1_lon*vec1_lon) .ge.
+     &                   (vec2_lat*vec2_lat + vec2_lon*vec2_lon)) then
+                       intrsct_lon = grdlon1
+                    else
+                       intrsct_lon = grdlon2
+                    endif
+
+                 else if (abs(abs(grdlat1)-pih) .lt. 1e-5) then
+                    intrsct_lon = grdlon1
+                 else if (abs(abs(grdlat2)-pih) .lt. 1e-5) then
+                    intrsct_lon = grdlon2
+                 endif
+
+                 !*** Make sure this longitude is not outside the
+                 !*** beglon,endlon range
+
+                 vec1_lon = endlon-intrsct_lon
+                 if (vec1_lon > pi) then
+                    vec1_lon = vec1_lon - pi2
+                 else if (vec1_lon < -pi) then
+                    vec1_lon = vec1_lon + pi2
+                 endif
+
+                 vec2_lon = beglon-intrsct_lon
+                 if (vec2_lon > pi) then
+                    vec2_lon = vec2_lon - pi2
+                 else if (vec2_lon < -pi) then
+                    vec2_lon = vec2_lon + pi2
+                 endif
+
+                 !*** if vec1_lon and vec2_lon are of the same sign
+                 !*** then intrsct_lon is outside the beglon,endlon range
+
+                 if (vec1_lon*vec2_lon > 0) cycle
+
+              endif
+
               if (intrsct_lon < zero) 
-     &          intrsct_lon = intrsct_lon + pi2
-
+     &             intrsct_lon = intrsct_lon + pi2
+           
               if (abs(intrsct_x) > 1.d-10) then
-                intrsct_lat = (pi4 - 
-     &            asin(rns*half*intrsct_x/cos(intrsct_lon)))*two
+                 intrsct_lat = (pi4 - 
+     &                asin(rns*half*intrsct_x/cos(intrsct_lon)))*two
+                 ldummy = two*(pi4 -
+     &           asin(sqrt(intrsct_x*intrsct_x+intrsct_y*intrsct_y)/2.))
               else if (abs(intrsct_y) > 1.d-10) then
-                intrsct_lat = (pi4 - 
-     &            asin(half*intrsct_y/sin(intrsct_lon)))*two
+                 intrsct_lat = (pi4 - 
+     &                asin(half*intrsct_y/sin(intrsct_lon)))*two
+                 ldummy = two*(pi4 -
+     &           asin(sqrt(intrsct_x*intrsct_x+intrsct_y*intrsct_y)/2.))
               else
-                intrsct_lat = two*pi4
+                 intrsct_lat = two*pi4
               endif
 
+
               !***
-              !*** add offset in transformed space for next pass.
+              !*** If there are multiple intersection points, accept the
+              !*** one that is not on the edge we started from but is
+              !*** closest to the start point - need this for intersection
+              !*** to work for non-convex edges
+              !***
+            
+              if (first) then
+
+                 intedge1 = (n-1)/npseg + 1
+                 intedge1 = ncorners - intedge1 + 1  ! dir of edges was reversed
+
+                 if (intedge1 .ne. begedge) then
+
+                    max_intrsct_lat = intrsct_lat
+                    max_intrsct_lon = intrsct_lon
+                    
+                    vec1_lat = intrsct_lat-beglat
+                    vec1_lon = intrsct_lon-beglon
+                    if (vec1_lon > pi) then
+                       vec1_lon = vec1_lon - pi2
+                    else if (vec1_lon < -pi) then
+                       vec1_lon = vec1_lon + pi2
+                    endif
+                    maxdist2 = vec1_lat*vec1_lat + vec1_lon*vec1_lon
+                    dist2 = maxdist2
+                    
+                    denom = (mat1*mat1+mat2*mat2)*(mat3*mat3+mat4*mat4)
+                    sinang2 = determ*determ/denom
+                    intedge = intedge1
+                 
+                    first = .false.
+                 endif
+
+              else
+                 vec1_lat = intrsct_lat-beglat
+                 vec1_lon = intrsct_lon-beglon
+                 if (vec1_lon > pi) then
+                    vec1_lon = vec1_lon - pi2
+                 else if (vec1_lon < -pi) then
+                    vec1_lon = vec1_lon + pi2
+                 endif
+                 dist2 = vec1_lat*vec1_lat + vec1_lon*vec1_lon
+                 
+                 !*** if the first intersection was on the same edge
+                 !*** as the starting edge or 
+                 !*** the current intersection point is not on the 
+                 !*** starting edge and the distance to the beginning 
+                 !*** point is less than that of the previous intersection
+                 !*** accept this intersection
+
+                 intedge1 = (n-1)/npseg + 1
+                 intedge1 = ncorners - intedge1 + 1 ! dir of edges was reversed 
+                 
+                 if (dist2 > maxdist2) then
+                    if (begedge == 0 .or. intedge1 .ne. begedge) then
+                       max_intrsct_lat = intrsct_lat
+                       max_intrsct_lon = intrsct_lon
+                       maxdist2 = dist2
+                       
+                       denom = 
+     &                      (mat1*mat1+mat2*mat2)*(mat3*mat3+mat4*mat4)
+                       sinang2 = determ*determ/denom
+                       intedge = intedge1
+                    endif
+                 endif
+              endif
+           endif   
+
+        else
+
+          !***
+          !*** Coincident lines or parallel lines
+          !*** 
+
+           cross_product = mat2*rhs2 - mat4*rhs1
+         
+           if (abs(cross_product) < tiny) then
+              
+              dot_product = mat1*(-mat2) + mat3*(-mat4)
+              
+              !***
+              !*** If area of triangle formed by x2,y2 and the gridline
+              !*** is negligible then the lines are coincident
               !***
 
-              if (s1 - eps/determ < one) then
-                intrsct_x = intrsct_x - mat1*(eps/determ)
-                intrsct_y = intrsct_y - mat3*(eps/determ)
-              else
-                if (.not. loutside) then
-                  intrsct_x = endx
-                  intrsct_y = endy
-                  intrsct_lat = endlat
-                  intrsct_lon = endlon
-                else 
-                  intrsct_x = begsegx
-                  intrsct_y = begsegy
-                  intrsct_lat = begseg(1)
-                  intrsct_lon = begseg(2)
+              lensqr1 = mat1*mat1 + mat3*mat3 ! length sqrd of input segment
+              
+              if (dot_product < zero) then
+                tmpx = grdx2
+                tmpy = grdy2
+                tmplat = grdlat2
+                tmplon = grdlon2
+                grdx2 = grdx1
+                grdy2 = grdy1
+                grdlat2 = grdlat1
+                grdlon2 = grdlon1
+                grdx1 = tmpx
+                grdy1 = tmpy
+                grdlat1 = tmplat
+                grdlon1 = tmplon
+             endif
+
+             
+             vec2_x = grdx1 - x1
+             vec2_y = grdy1 - y1
+             lensqr2 = vec2_x*vec2_x + vec2_y*vec2_y
+             if (vec2_x*mat1+vec2_y*mat3 < 0) then
+                lensqr2 = -lensqr2
+             endif
+             
+
+             vec3_x = grdx2 - x1
+             vec3_y = grdy2 - y1             
+             lensqr3 = (vec3_x*vec3_x+vec3_y*vec3_y)
+             if (vec3_x*mat1+vec3_y*mat3 < 0) then
+                lensqr3 = -lensqr3
+             endif
+
+             found = .false.
+
+             if (lensqr2 > 0) then
+                if (lensqr2 <= lensqr1) then
+                   intrsct_x = grdx1
+                   intrsct_y = grdy1
+                   intrsct_lat = grdlat1
+                   intrsct_lon = grdlon1
+                   found = .true.
                 endif
-              endif
+             else
+                if (lensqr3 > 0) then
+                   if (lensqr3 > lensqr1) then
+                      intrsct_x = x2
+                      intrsct_y = y2
+                      intrsct_lat = endlat
+                      intrsct_lon = endlon
+                      found = .true.
+                   else
+                      intrsct_x = grdx2
+                      intrsct_y = grdy2
+                      intrsct_lat = grdlat2
+                      intrsct_lon = grdlon2
+                      found = .true.
+                   endif
+                endif
+             endif
+             
+             if (found) then
+                dist2 = (intrsct_lat-beglat)*(intrsct_lat-beglat)+
+     &               (intrsct_lon-beglon)*(intrsct_lon-beglon)
+                
+                if (dist2 > tiny*tiny) then
+                   
+                   !*** Coincidence intersection always wins
+                   
+                   max_intrsct_lat = intrsct_lat
+                   max_intrsct_lon = intrsct_lon
+                   maxdist2 = dist2
+                   sinang2 = 0
+                   intedge = (n-1)/npseg + 1
+                   intedge = ncorners - intedge + 1
+                   lcoinc = .true.
+                   
+                   exit intrsct_loop2
+                endif
+             endif
 
-              exit intrsct_loop
-            endif
-          endif
-        endif
 
-        !***
-        !*** no intersection this side, move on to next side
-        !***
+           endif                ! if (abs(cross_product) < tiny)
+              
+        endif                   ! if (abs(determ) > 1.e-30) .. else .. endif
 
-      end do intrsct_loop
-      call timer_stop(13)
+      end do intrsct_loop2
 
-      deallocate(srch_corner_x, srch_corner_y)
+      if (maxdist2 < 1e6*tiny*tiny)  then
+         intedge = 0
+         return
+      else
+         intrsct_lat = max_intrsct_lat
+         intrsct_lon = max_intrsct_lon
+      endif
 
 !-----------------------------------------------------------------------
 !
@@ -1850,24 +2757,21 @@
 !-----------------------------------------------------------------------
 
       if (abs(intrsct_x) < 1.e-10 .and. abs(intrsct_y) < 1.e-10 .and.
-     &    (endx /= zero .and. endy /=0)) then
+     &    (x2 /= zero .and. y2 /=0)) then
         if (avoid_pole_count > 2) then
            avoid_pole_count = 0
            avoid_pole_offset = 10.*avoid_pole_offset
         endif
 
-        cross_product = begsegx*(endy-begsegy) - begsegy*(endx-begsegx)
-        intrsct_lat = begseg(1)
+        cross_product = x1*(y2-y1) - y1*(x2-x1)
+        intrsct_lat = beglat
         if (cross_product*intrsct_lat > zero) then
           intrsct_lon = beglon    + avoid_pole_offset
-          begseg(2)   = begseg(2) + avoid_pole_offset
         else
           intrsct_lon = beglon    - avoid_pole_offset
-          begseg(2)   = begseg(2) - avoid_pole_offset
         endif
 
         avoid_pole_count = avoid_pole_count + 1
-        luse_last = .false.
       else
         avoid_pole_count = 0
         avoid_pole_offset = tiny
@@ -1891,31 +2795,23 @@
         mat3 = endlon - begseg(2)
         if (mat3 >  pi) mat3 = mat3 - pi2
         if (mat3 < -pi) mat3 = mat3 + pi2
-        intrsct_lat = north_thresh - tiny
+!        intrsct_lat = north_thresh - tiny
+        intrsct_lat = north_thresh
         s1 = (north_thresh - begseg(1))/mat4
         intrsct_lon = begseg(2) + s1*mat3
-        luse_last = .false.
         lthresh = .true.
       else if (beglat < zero .and. intrsct_lat > south_thresh) then
         mat4 = endlat - begseg(1)
         mat3 = endlon - begseg(2)
         if (mat3 >  pi) mat3 = mat3 - pi2
         if (mat3 < -pi) mat3 = mat3 + pi2
-        intrsct_lat = south_thresh + tiny
+!        intrsct_lat = south_thresh + tiny
+        intrsct_lat = south_thresh
         s1 = (south_thresh - begseg(1))/mat4
         intrsct_lon = begseg(2) + s1*mat3
-        luse_last = .false.
         lthresh = .true.
       endif
 
-      !***
-      !*** if reached end of segment, do not use x,y intersect 
-      !*** on next entry
-      !***
-
-      if (intrsct_lat == endlat .and. intrsct_lon == endlon) then
-        luse_last = .false.
-      endif
 
 !-----------------------------------------------------------------------
 
@@ -1923,7 +2819,69 @@
 
 !***********************************************************************
 
-      subroutine line_integral(weights, num_wts, 
+      subroutine line_integral(phi_or_theta, weights, num_wts, 
+     &                       in_phi1, in_phi2, theta1, theta2,
+     &                       grid1_lat, grid1_lon, grid2_lat, grid2_lon)
+
+!-----------------------------------------------------------------------
+!
+!     this routine computes the line integral of the flux function 
+!     that results in the interpolation weights.  the line is defined
+!     by the input lat/lon of the endpoints.
+!
+!-----------------------------------------------------------------------
+      
+!-----------------------------------------------------------------------
+!
+!     intent(in):
+!
+!-----------------------------------------------------------------------
+
+      integer (SCRIP_i4), intent(in) :: 
+     &     phi_or_theta         ! Integration variable (lat or lon)
+
+      integer (SCRIP_i4), intent(in) ::
+     &     num_wts              ! number of weights to compute
+
+      real (SCRIP_r8), intent(in) :: 
+     &     in_phi1, in_phi2,     ! longitude endpoints for the segment
+     &     theta1, theta2,       ! latitude  endpoints for the segment
+     &     grid1_lat, grid1_lon, ! reference coordinates for each
+     &     grid2_lat, grid2_lon  ! grid (to ensure correct 0,2pi interv.
+
+!-----------------------------------------------------------------------
+!
+!     intent(out):
+!
+!-----------------------------------------------------------------------
+
+      real (SCRIP_r8), dimension(2*num_wts), intent(out) ::
+     &     weights   ! line integral contribution to weights
+
+
+
+      if (phi_or_theta .eq. 1) then
+         call line_integral_phi(weights, num_wts, in_phi1, in_phi2,
+     &        theta1, theta2, grid1_lat, grid1_lon, 
+     &        grid2_lat, grid2_lon)
+      else
+         call line_integral_theta(weights, num_wts, in_phi1, in_phi2,
+     &        theta1, theta2, grid1_lat, grid1_lon, 
+     &        grid2_lat, grid2_lon)
+      endif
+
+
+      return
+
+!-------------------------------------------------------------------------
+
+      end subroutine line_integral
+
+!*************************************************************************
+
+
+
+      subroutine line_integral_phi(weights, num_wts, 
      &                       in_phi1, in_phi2, theta1, theta2,
      &                       grid1_lat, grid1_lon, grid2_lat, grid2_lon)
 
@@ -2071,9 +3029,250 @@
 
 !-----------------------------------------------------------------------
 
-      end subroutine line_integral
+      end subroutine line_integral_phi
 
 !***********************************************************************
+
+      subroutine line_integral_theta(weights, num_wts, 
+     &                       in_phi1, in_phi2, theta1, theta2,
+     &                       grid1_lat, grid1_lon, grid2_lat, grid2_lon)
+
+!-----------------------------------------------------------------------
+!
+!     this routine computes the line integral of the flux function 
+!     that results in the interpolation weights.  the line is defined
+!     by the input lat/lon of the endpoints.
+!
+!-----------------------------------------------------------------------
+
+!-----------------------------------------------------------------------
+!
+!     intent(in):
+!
+!-----------------------------------------------------------------------
+
+      integer (SCRIP_i4), intent(in) ::
+     &        num_wts  ! number of weights to compute
+
+      real (SCRIP_r8), intent(in) :: 
+     &     in_phi1, in_phi2,     ! longitude endpoints for the segment
+     &     theta1, theta2,       ! latitude  endpoints for the segment
+     &     grid1_lat, grid1_lon, ! reference coordinates for each
+     &     grid2_lat, grid2_lon  ! grid (to ensure correct 0,2pi interv.
+
+!-----------------------------------------------------------------------
+!
+!     intent(out):
+!
+!-----------------------------------------------------------------------
+
+      real (SCRIP_r8), dimension(2*num_wts), intent(out) ::
+     &     weights   ! line integral contribution to weights
+
+!-----------------------------------------------------------------------
+!
+!     local variables
+!
+!-----------------------------------------------------------------------
+
+      real (SCRIP_r8) :: dtheta, dtheta2, costh1, costh2, costhpi,
+     &                   phi1, phi2, theta_pi, f1, f2, fpi, part1, part2
+
+!-----------------------------------------------------------------------
+!
+!     weights for the general case based on a trapezoidal approx to
+!     the integrals.
+!
+!-----------------------------------------------------------------------
+
+      costh1 = COS(theta1)
+      costh2 = COS(theta2)
+
+      dtheta = theta2 - theta1
+      dtheta2 = half*dtheta
+
+!-----------------------------------------------------------------------
+!
+!     Need to account for double value of longitude in calculations of
+!     all the weights.  First we transform all the phis to be relative
+!     to the grid center This takes care of a good number of cases where
+!     the the phis span the periodic boundary in the longitudinal
+!     direction. If we still have a line that spans the periodic
+!     boundary then we have to integrate along the line in two parts -
+!     from point 1 to the periodic boundary and from the periodic
+!     boundary to the second point
+!
+!     Example: Consider a line which has points at phi1 = -100 and phi2
+!     = 100 degrees and say the grid center is at phi_c = 0
+!     degrees. Then phi1-phi_c > -180 and phi2-phi_c < 180. But
+!     phi2-phi1 > 180.
+!
+!     *********************************************!!!!!!!!!!!
+!     If we are doing the second step anyway, why are we normalizing the
+!     coordinates with respect to the grid centers?
+!     *********************************************!!!!!!!!!!!
+!
+!-----------------------------------------------------------------------
+
+      phi1 = in_phi1 - grid1_lon
+      if (phi1 >  pi) then
+        phi1 = phi1 - pi2
+      else if (phi1 < -pi) then
+        phi1 = phi1 + pi2
+      endif
+
+      phi2 = in_phi2 - grid1_lon
+      if (phi2 >  pi) then
+        phi2 = phi2 - pi2
+      else if (phi2 < -pi) then
+        phi2 = phi2 + pi2
+      endif
+
+      f1 = phi1*costh1
+      f2 = phi2*costh2
+
+      if ((phi2-phi1) <  pi .and. (phi2-phi1) > -pi) then
+
+        weights(1) = dtheta2*(f1 + f2)
+
+        weights(2) = dtheta2*(theta1*f1 + theta2*f2)
+
+        weights(3) = half*dtheta2*(f1*f1 + f2*f2)
+
+      else
+         if (phi1 > zero) then  ! Means phi2-phi1 < -pi
+
+!           theta at phi = pi
+            theta_pi = theta1 + (pi - phi1)*dtheta/(phi2 + pi2 - phi1)
+            print *, ''
+            print *, 'phi1',phi1,'    phi2',phi2
+            print *, 'theta1',theta1,'    theta2',theta2
+            print *, 'theta_pi',theta_pi
+            
+            costhpi = COS(theta_pi)
+            fpi = pi*costhpi
+            
+            part1 = 0.5*(theta_pi - theta1)*(f1 + fpi)
+            part2 = 0.5*(theta2 - theta_pi)*(-fpi + f2)
+            weights(1) = part1 + part2
+            
+            part1 = 0.5*(theta_pi - theta1)*(theta1*f1 + theta_pi*fpi)
+            part2 = 0.5*(theta2 - theta_pi)*(-theta_pi*fpi + theta2*f2)
+            weights(2) = part1 + part2
+            
+            
+         else                   ! Means phi2-phi1 > pi
+       
+!           theta at phi = -pi
+            theta_pi = theta1 + (-pi - phi1)*dtheta/(phi2 - pi2 - phi1)
+            print *, ''
+            print *, 'phi1',phi1,'    phi2',phi2
+            print *, 'theta1',theta1,'    theta2',theta2
+            print *, 'theta_pi',theta_pi
+            
+            costhpi = COS(theta_pi)
+            fpi = pi*costhpi
+            
+            part1 = 0.5*(theta_pi - theta1)*(f1 - fpi)
+            part2 = 0.5*(theta2 - theta_pi)*(fpi + f2)
+            weights(1) = part1 + part2
+            
+            part1 = 0.5*(theta_pi - theta1)*(theta1*f1 - theta_pi*fpi)
+            part2 = 0.5*(theta2 - theta_pi)*(theta_pi*fpi + theta2*f2)
+            weights(2) = part1 + part2
+            
+            
+         endif
+         
+         part1 = 0.25*(theta_pi - theta1)*(f1*f1 + fpi*fpi)
+         part2 = 0.25*(theta2 - theta_pi)*(fpi*fpi + f2*f2)
+         weights(3) = part1 + part2
+         
+      endif
+      
+      
+      phi1 = in_phi1 - grid2_lon
+      if (phi1 >  pi) then
+         phi1 = phi1 - pi2
+      else if (phi1 < -pi) then
+         phi1 = phi1 + pi2
+      endif
+      
+      phi2 = in_phi2 - grid2_lon
+      if (phi2 >  pi) then
+         phi2 = phi2 - pi2
+      else if (phi2 < -pi) then
+         phi2 = phi2 + pi2
+      endif
+      
+      
+      f1 = phi1*costh1
+      f2 = phi2*costh2
+      
+      if ((phi2-phi1) <  pi .and. (phi2-phi1) > -pi) then
+         
+         weights(num_wts+1) = dtheta2*(f1 + f2)
+         
+         weights(num_wts+2) = dtheta2*(theta1*f1 + theta2*f2)
+         
+         weights(num_wts+3) = half*dtheta2*(f1*f1 + f2*f2)
+         
+      else
+         if (phi1 > zero) then
+            
+            theta_pi = theta1 + (pi - phi1)*dtheta/(phi2 + pi2 - phi1)
+            print *, ''
+            print *, 'phi1',phi1,'    phi2',phi2
+            print *, 'theta1',theta1,'    theta2',theta2
+            print *, 'theta_pi',theta_pi
+            
+            costhpi = COS(theta_pi)
+            fpi = pi*costhpi
+            
+            part1 = 0.5*(theta_pi - theta1)*(f1 + fpi)
+            part2 = 0.5*(theta2 - theta_pi)*(-fpi + f2)
+            weights(num_wts+1) = part1 + part2
+            
+            part1 = 0.5*(theta_pi - theta1)*(theta1*f1 + theta_pi*fpi)
+            part2 = 0.5*(theta2 - theta_pi)*(-theta_pi*fpi + theta2*f2)
+            weights(num_wts+2) = part1 + part2
+            
+            
+         else
+            
+            theta_pi = theta1 + (-pi - phi1)*dtheta/(phi2 - pi2 - phi1)
+            print *, ''
+            print *, 'phi1',phi1,'    phi2',phi2
+            print *, 'theta1',theta1,'    theta2',theta2
+            print *, 'theta_pi',theta_pi
+            
+            costhpi = COS(theta_pi)
+            fpi = pi*costhpi
+            
+            part1 = 0.5*(theta_pi - theta1)*(f1 - fpi)
+            part2 = 0.5*(theta2 - theta_pi)*(fpi + f2)
+            weights(num_wts+1) = part1 + part2
+            
+            part1 = 0.5*(theta_pi - theta1)*(theta1*f1 - theta_pi*fpi)
+            part2 = 0.5*(theta2 - theta_pi)*(theta_pi*fpi + theta2*f2)
+            weights(num_wts+2) = part1 + part2
+            
+            
+         endif
+         
+         part1 = 0.25*(theta_pi - theta1)*(f1*f1 + fpi*fpi)
+         part2 = 0.25*(theta2 - theta_pi)*(fpi*fpi + f2*f2)
+         weights(num_wts+3) = part1 + part2
+         
+      endif
+
+!-----------------------------------------------------------------------
+
+      end subroutine line_integral_theta
+
+!***********************************************************************
+
+
 
       subroutine store_link_cnsrv(add1, add2, weights)
 
@@ -2112,6 +3311,9 @@
 
       logical (SCRIP_logical), save :: first_call = .true.
 
+      logical (SCRIP_logical) :: found
+
+
 !-----------------------------------------------------------------------
 !
 !     if all weights are zero, do not bother storing the link
@@ -2149,6 +3351,8 @@
 !
 !-----------------------------------------------------------------------
 
+      found = .false.
+
       do nlink=min_link,max_link
         if (add1 == grid1_add_map1(nlink)) then
         if (add2 == grid2_add_map1(nlink)) then
@@ -2158,11 +3362,15 @@
             wts_map2(:,nlink) = wts_map2(:,nlink) + 
      &                                  weights(num_wts+1:2*num_wts)
           endif
-          return
+          found = .true.
+          exit
 
         endif
         endif
       end do
+
+
+      if (found) return
 
 !-----------------------------------------------------------------------
 !
@@ -2200,6 +3408,2214 @@
       end subroutine store_link_cnsrv
 
 !***********************************************************************
+
+
+
+
+      subroutine locate_segstart(cell_grid_num, cell,
+     &     beglat, beglon, endlat, endlon, offset,
+     &     srch_grid_num, cont_cell, lboundary, edgeid)
+
+!-----------------------------------------------------------------------
+!
+!     Find the cell containing the given point
+!
+!-----------------------------------------------------------------------
+
+      implicit none
+
+!-----------------------------------------------------------------------
+!
+!     intent(in): 
+!
+!-----------------------------------------------------------------------
+
+      real (SCRIP_r8), intent(in) :: 
+     &     beglat, beglon,      ! beginning and end points of segment
+     &     endlat, endlon       ! on which the point to be located lies
+
+      real (SCRIP_r8), intent(in) ::
+     &     offset               ! Offset to calculate the search point
+
+      integer (SCRIP_i4), intent(in) ::
+     &     cell,                ! Cell from which point originates
+                                ! Point will be on boundary of orig_cell
+     &     cell_grid_num        ! Index of grid to which cell belongs
+
+      integer (SCRIP_i4), intent(in) ::
+     &     srch_grid_num        ! num indicating if we are locating a grid1
+                                ! point in a cell of grid2 (num = 2) or 
+                                ! a grid2 point in a cell of grid1 (num = 1)
+
+!-----------------------------------------------------------------------
+!
+!     intent(out): 
+!
+!-----------------------------------------------------------------------
+
+      integer (SCRIP_i4), intent(out) ::
+     &     cont_cell            ! grid cell containing this point
+
+      logical (SCRIP_logical), intent(out) ::
+     &     lboundary            ! flag points that lie on the boundary 
+                                ! of the cell
+
+      integer (SCRIP_i4), intent(out) ::
+     &     edgeid               ! if point is on boundary, which local
+                                ! edge is it on? (0 otherwise)
+
+!-----------------------------------------------------------------------
+!
+!     local variables
+!
+!-----------------------------------------------------------------------
+
+      integer (SCRIP_i4) :: i, j, k, n, ic
+      integer (SCRIP_i4) :: whichpole, srch_cell_add,
+     &                      grid1_add, grid2_add, min_add, max_add
+
+      logical (SCRIP_logical), save ::
+     &     first_call= .true.
+
+      integer (SCRIP_i4), save :: 
+     &     last_cell=0,               ! save the search parameters
+     &     last_cell_grid_num=0,      ! if unchanged, reuse search lists
+     &     last_srch_grid_num=0
+
+      integer (SCRIP_i4), save ::
+     &     num_srch_cells=0,
+     &     srch_corners              ! number of corners for each cell
+
+      integer (SCRIP_i4), dimension(:), allocatable, save :: 
+     &        srch_add       ! global address of cells in srch arrays
+
+
+      real (SCRIP_r8), dimension(:,:), allocatable, save ::
+     &     srch_corner_lat,  ! lat of each corner of srch cells
+     &     srch_corner_lon   ! lon of each corner of srch cells
+
+      real (SCRIP_r8), dimension(:), allocatable, save ::
+     &     srch_center_lat,  ! lat of center of srch cells
+     &     srch_center_lon   ! lon of center of srch cells
+
+      real (SCRIP_r8), dimension(:), allocatable ::
+     &     cell_corner_x, cell_corner_y
+
+      logical (SCRIP_logical) :: inpoly, latlon      
+
+      real (SCRIP_r8) ::
+     &     vec1_x, vec1_y, vec1_lenx, vec1_lat, vec1_lon, vec1_len,
+     &     begx, begy, endx, endy, ptx, pty, rns, pi4, ptlat, ptlon,
+     &     lat, lon, cell_center_x, cell_center_y
+
+!-----------------------------------------------------------------------
+!
+!     initialize defaults, flags, etc.
+!
+!-----------------------------------------------------------------------
+
+      lboundary = .false.
+      edgeid = 0
+      cont_cell = 0
+      
+
+      if (cell /= last_cell .or. cell_grid_num /= last_cell_grid_num 
+     &     .or. srch_grid_num /= last_srch_grid_num) then
+
+         last_cell = cell
+         last_cell_grid_num = cell_grid_num
+         last_srch_grid_num = srch_grid_num
+
+         if (first_call) then
+            first_call = .false.
+            last_cell = 0
+            last_cell_grid_num = 0
+            last_srch_grid_num = 0
+            num_srch_cells = 0
+         else
+            if (num_srch_cells .gt. 0) then
+               deallocate(srch_add,srch_corner_lat,srch_corner_lon,
+     &              srch_center_lat, srch_center_lon)
+            endif
+         endif
+
+         call get_srch_cells(cell, cell_grid_num, srch_grid_num, 
+     &        num_srch_cells, srch_add, srch_corners, 
+     &        srch_corner_lat, srch_corner_lon,
+     &        srch_center_lat, srch_center_lon)
+
+      endif
+
+      if (num_srch_cells == 0) return
+
+
+      do ic=1,num_srch_cells
+         
+         srch_cell_add = srch_add(ic)
+         
+
+
+         !**** CAN WE ACCOMPLISH THE FOLLOWING THROUGH A SUBROUTINE 
+         !**** CALLED SEGSTART_INCELL ?? 
+
+
+      !*** IF POINT IS IN POLAR REGION, CHECK IN A TRANSFORMED SPACE
+      !*** HOWEVER, POINTS THAT ARE PRACTICALLY AT THE POLE CANNOT
+      !*** BE CORRECTLY LOCATED THIS WAY BECAUSE THE POLE IS A SINGULARITY
+      !*** AND CONTAINMENT IN ANY CELL INCIDENT ON THE POLE WILL GIVE US A 
+      !*** POSITIVE ANSWER. FOR THESE POINTS REVERT TO THE LATLON SPACE
+      !***
+
+
+
+         vec1_lat = endlat-beglat
+         vec1_lon = endlon-beglon
+         if (vec1_lon > pi) then
+            vec1_lon = vec1_lon - pi2
+         else if (vec1_lon < -pi) then
+            vec1_lon = vec1_lon + pi2
+         endif
+         vec1_len = sqrt(vec1_lat*vec1_lat+vec1_lon*vec1_lon)
+         vec1_lat = vec1_lat/vec1_len
+         vec1_lon = vec1_lon/vec1_len
+         
+         ptlat = beglat + offset*vec1_lat
+         ptlon = beglon + offset*vec1_lon
+            
+
+         if ((ptlat .gt. north_thresh .and. abs(ptlat-pih) .ge. 0.001) 
+     &        .or. 
+     &        (ptlat .lt. south_thresh .and. abs(ptlat+pih) .ge. 0.001)) 
+     &        then
+
+            if (ptlat > zero) then
+               pi4 = quart*pi
+               rns = one
+            else
+               pi4 = -quart*pi
+               rns = -one
+            endif
+
+        
+            begx = rns*two*sin(pi4 - half*beglat)*cos(beglon)
+            begy =     two*sin(pi4 - half*beglat)*sin(beglon)
+            endx = rns*two*sin(pi4 - half*endlat)*cos(endlon)
+            endy =     two*sin(pi4 - half*endlat)*sin(endlon)
+        
+            vec1_x = endx-begx
+            vec1_y = endy-begy
+
+            vec1_lenx = sqrt(vec1_x*vec1_x + vec1_y*vec1_y)
+            vec1_x = vec1_x/vec1_lenx
+            vec1_y = vec1_y/vec1_lenx
+
+
+            !*** Must calculate ptx and pty as an offset on straight line
+            !*** in polar space rather than calculating it on a straight line
+            !*** in latlon space an offset point in latlon space will be 
+            !*** off the straight line
+            !*** in polar space
+
+            ptx = begx + offset*vec1_x
+            pty = begy + offset*vec1_y
+
+            latlon = .false.
+
+         ! Since we want greater fidelity for locating the points 
+         ! we send in the mid-points of the polygon edges too
+         ! BUT THAT MAKES THE POLYGON NON-CONVEX SOMETIMES AND 
+         ! THE CROSS-PRODUCT CHECK FAILS. SO USE CODE TO CHECK GENERAL
+         ! POLYGONS
+
+
+            allocate(cell_corner_x(npseg*srch_corners),
+     &           cell_corner_y(npseg*srch_corners))
+
+
+            k = 0
+            do i = srch_corners, 1, -1
+               k = k+1
+               lat = srch_corner_lat(i,ic)
+               lon = srch_corner_lon(i,ic)
+               cell_corner_x(k) = rns*two*sin(pi4-half*lat)*cos(lon)
+               cell_corner_y(k) =     two*sin(pi4-half*lat)*sin(lon)
+           
+               j = i-1
+               if (j .eq. 0) j = srch_corners ! how do we do (j-1+n)%n in F90?
+           
+               vec1_lat = srch_corner_lat(j,ic)-srch_corner_lat(i,ic)
+               vec1_lon = srch_corner_lon(j,ic)-srch_corner_lon(i,ic)
+               if (vec1_lon > pi) then
+                  vec1_lon = vec1_lon - pi2
+               else if (vec1_lon < -pi) then
+                  vec1_lon = vec1_lon + pi2
+               endif
+
+               do j = 1, npseg-1
+                  k = k+1
+                  lat = srch_corner_lat(i,ic) + j*vec1_lat/npseg
+                  lon = srch_corner_lon(i,ic) + j*vec1_lon/npseg
+                  cell_corner_x(k) = rns*two*sin(pi4-half*lat)*cos(lon)
+                  cell_corner_y(k) =     two*sin(pi4-half*lat)*sin(lon)
+               enddo
+            enddo
+
+
+            call ptinpolygen2(ptx, pty, k, cell_corner_x,
+     &           cell_corner_y, latlon, inpoly, lboundary, edgeid)
+
+            if (lboundary) then
+               edgeid = (edgeid-1)/npseg + 1 ! convert from index in 
+                                         ! multi-segmented to regular cell
+            endif
+
+            deallocate(cell_corner_x, cell_corner_y)
+
+         else
+
+            latlon = .true.
+            
+            whichpole = 0
+            if (srch_grid_num .eq. 1 .and. 
+     &           srch_cell_add .eq. grid1_spole_cell) then
+               
+               whichpole = -1   ! S pole
+               call ptinpolarpoly(ptlat, ptlon, srch_corners,
+     &              srch_corner_lat(:,ic), srch_corner_lon(:,ic),
+     &              latlon, whichpole, inpoly, lboundary, edgeid)
+               
+            else if (srch_grid_num .eq. 1 .and.
+     &              srch_cell_add .eq. grid1_npole_cell) then
+               
+               whichpole =  1   ! N pole
+               call ptinpolarpoly(ptlat, ptlon, srch_corners,
+     &              srch_corner_lat(:,ic), srch_corner_lon(:,ic),
+     &              latlon, whichpole, inpoly, lboundary, edgeid)
+               
+            else if (srch_grid_num .eq. 2 .and.
+     &              srch_cell_add .eq. grid2_spole_cell) then
+               
+               whichpole = -1   ! S pole
+               call ptinpolarpoly(ptlat, ptlon, srch_corners,
+     &              srch_corner_lat(:,ic), srch_corner_lon(:,ic),
+     &              latlon, whichpole, inpoly, lboundary, edgeid)
+               
+            else if (srch_grid_num .eq. 2 .and.
+     &              srch_cell_add .eq. grid2_npole_cell) then
+               
+               whichpole =  1   ! N pole
+               call ptinpolarpoly(ptlat, ptlon, srch_corners,
+     &              srch_corner_lat(:,ic), srch_corner_lon(:,ic),
+     &              latlon, whichpole, inpoly, lboundary, edgeid)
+               
+            else
+            
+      !***
+      !***  General cell
+      !***
+               
+               call ptinpoly(ptlat, ptlon, srch_corners, 
+     &              srch_corner_lat(:,ic), srch_corner_lon(:,ic),
+     &              latlon, inpoly, lboundary, edgeid)
+               
+            endif
+            
+         endif
+
+         if (inpoly) then
+            cont_cell = srch_cell_add
+            exit
+         endif         
+            
+      end do
+
+
+      return
+
+!----------------------------------------------------------------------
+
+      end subroutine locate_segstart
+
+!**********************************************************************
+
+
+
+!**********************************************************************
+
+      subroutine locate_point(ptlat, ptlon, cell, cell_grid_num,
+     &     srch_grid_num, cont_cell, lboundary, edgeid)
+
+!-----------------------------------------------------------------------
+!
+!     Find the cell containing the given point
+!
+!-----------------------------------------------------------------------
+
+      implicit none
+
+!-----------------------------------------------------------------------
+!
+!     intent(in): 
+!
+!-----------------------------------------------------------------------
+
+      real (SCRIP_r8), intent(in) :: 
+     &     ptlat, ptlon         ! Point to locate
+
+      integer (SCRIP_i4), intent(in) ::
+     &     cell,                ! Cell from which point originates
+                                ! Point will be on boundary of orig_cell
+     &     cell_grid_num        ! Index of grid to which cell belongs
+
+      integer (SCRIP_i4), intent(in) ::
+     &     srch_grid_num        ! num indicating if we are locating a grid1
+                                ! point in a cell of grid2 (num = 2) or 
+                                ! a grid2 point in a cell of grid1 (num = 1)
+
+!-----------------------------------------------------------------------
+!
+!     intent(out): 
+!
+!-----------------------------------------------------------------------
+
+      integer (SCRIP_i4), intent(out) ::
+     &     cont_cell            ! grid cell containing this point
+
+      logical (SCRIP_logical), intent(out) ::
+     &     lboundary            ! flag points that lie on the boundary 
+                                ! of the cell
+
+      integer (SCRIP_i4), intent(out) ::
+     &     edgeid               ! if point is on boundary, which local
+                                ! edge is it on? (0 otherwise)
+
+!-----------------------------------------------------------------------
+!
+!     local variables
+!
+!-----------------------------------------------------------------------
+
+      integer (SCRIP_i4) :: i, j, n, ic
+      integer (SCRIP_i4) :: whichpole, srch_cell_add,
+     &                      grid1_add, grid2_add, min_add, max_add
+
+      logical (SCRIP_logical), save ::
+     &     first_call= .true.
+
+      integer (SCRIP_i4), save :: 
+     &     last_cell=0,               ! save the search parameters
+     &     last_cell_grid_num=0,      ! if unchanged, reuse search lists
+     &     last_srch_grid_num=0
+
+      integer (SCRIP_i4), save ::
+     &     num_srch_cells=0,
+     &     srch_corners              ! number of corners for each cell
+
+      integer (SCRIP_i4), dimension(:), allocatable, save :: 
+     &        srch_add       ! global address of cells in srch arrays
+
+
+      real (SCRIP_r8), dimension(:,:), allocatable, save ::
+     &     srch_corner_lat,  ! lat of each corner of srch cells
+     &     srch_corner_lon   ! lon of each corner of srch cells
+
+      real (SCRIP_r8), dimension(:), allocatable, save ::
+     &     srch_center_lat,  ! lat of center of srch cells
+     &     srch_center_lon   ! lon of center of srch cells
+
+
+      logical (SCRIP_logical) :: inpoly, latlon      
+
+!-----------------------------------------------------------------------
+!
+!     initialize defaults, flags, etc.
+!
+!-----------------------------------------------------------------------
+
+      lboundary = .false.
+      edgeid = 0
+      cont_cell = 0
+      
+
+      if (cell /= last_cell .or. cell_grid_num /= last_cell_grid_num 
+     &     .or. srch_grid_num /= last_srch_grid_num) then
+
+         last_cell = cell
+         last_cell_grid_num = cell_grid_num
+         last_srch_grid_num = srch_grid_num
+
+         if (first_call) then
+            first_call = .false.
+            last_cell = 0
+            last_cell_grid_num = 0
+            last_srch_grid_num = 0
+            num_srch_cells = 0
+         else
+            if (num_srch_cells .gt. 0) then
+               deallocate(srch_add,srch_corner_lat,srch_corner_lon)
+            endif
+         endif
+
+         call get_srch_cells(cell, cell_grid_num, srch_grid_num, 
+     &        num_srch_cells, srch_add, srch_corners, 
+     &        srch_corner_lat, srch_corner_lon,
+     &        srch_center_lat, srch_center_lon)
+
+      endif
+
+      if (num_srch_cells == 0) return
+
+
+      do ic=1,num_srch_cells
+         
+         srch_cell_add = srch_add(ic)
+         
+         call ptincell(ptlat, ptlon, srch_cell_add, srch_corners,
+     &        srch_corner_lat(:,ic), srch_corner_lon(:,ic),
+     &        srch_center_lat(ic), srch_center_lon(ic),
+     &        srch_grid_num, inpoly, lboundary, edgeid)
+                 
+         
+         if (inpoly) then
+            cont_cell = srch_cell_add
+            exit
+         endif         
+            
+      end do
+
+
+!----------------------------------------------------------------------
+
+      end subroutine locate_point
+
+!**********************************************************************
+
+
+
+!**********************************************************************
+
+      subroutine ptincell(ptlat, ptlon, cell_add, ncorners, 
+     &     cell_corner_lat, cell_corner_lon,
+     &     cell_center_lat, cell_center_lon,
+     &     cell_grid_id, inpoly, lboundary, edgeid)
+
+!----------------------------------------------------------------------
+
+      implicit none
+
+!-----------------------------------------------------------------------
+!
+!     intent(in): 
+!
+!-----------------------------------------------------------------------
+
+      real (SCRIP_r8), intent(in) :: 
+     &     ptlat, ptlon         ! Point to locate
+
+      integer (SCRIP_i4), intent(in) ::
+     &     cell_add             ! ID of cell
+
+      integer (SCRIP_i4), intent(in) ::
+     &     ncorners 
+
+      real (SCRIP_r8), dimension(ncorners), intent(in) ::
+     &     cell_corner_lat, cell_corner_lon
+
+      real (SCRIP_r8), intent(in) ::
+     &     cell_center_lat, 
+     &     cell_center_lon
+
+      integer (SCRIP_i4), intent(in) ::
+     &     cell_grid_id         ! num indicating if we are locating a grid1
+                                ! point in a cell of grid2 (num = 2) or 
+                                ! a grid2 point in a cell of grid1 (num = 1)
+
+
+!-----------------------------------------------------------------------
+!
+!     intent(out): 
+!
+!-----------------------------------------------------------------------
+
+      logical (SCRIP_logical), intent(out) ::
+     &     inpoly               ! is point in polygon?
+
+      logical (SCRIP_logical), intent(out) ::
+     &     lboundary            ! flag points that lie on the boundary 
+                                ! of the cell
+
+      integer (SCRIP_i4), intent(out) ::
+     &     edgeid               ! if point is on boundary, which local
+                                ! edge is it on? (0 otherwise)
+!-----------------------------------------------------------------------
+!
+!     local variables
+!
+!-----------------------------------------------------------------------
+
+      integer (SCRIP_i4) :: i, j, k, ic
+      integer (SCRIP_i4) :: whichpole
+
+      real (SCRIP_r8) :: rns, pi4, ptx, pty, lat, lon,
+     &     cell_center_x, cell_center_y, vec1_lat, vec1_lon
+
+      logical (SCRIP_logical) ::
+     &     latlon
+
+      real (kind=SCRIP_r8), dimension(npseg*ncorners) ::
+     &     cell_corner_x,  ! x of each corner of cell
+     &     cell_corner_y   ! y of each corner of cell
+
+!----------------------------------------------------------------------
+
+      edgeid = 0
+
+
+      !*** IF POINTS ARE ABOVE THE THRESHOLD, CHECK THEM IN A TRANSFORMED
+      !*** SPACE
+      !*** HOWEVER, POINTS THAT ARE PRACTICALLY AT THE POLE CANNOT
+      !*** BE CORRECTLY LOCATED THIS WAY BECAUSE THE POLE IS A SINGULARITY
+      !*** AND CONTAINMENT IN ANY CELL INCIDENT ON THE POLE WILL GIVE US A 
+      !*** POSITIVE ANSWER. FOR THESE POINTS REVERT TO THE LATLON SPACE
+      !***
+
+      if ((ptlat .gt. north_thresh .and. abs(ptlat-pih) .ge. 0.001) .or. 
+     &    (ptlat .lt. south_thresh .and. abs(ptlat+pih) .ge. 0.001)) 
+     &     then
+
+         if (ptlat > zero) then
+            pi4 = quart*pi
+            rns = one
+         else
+            pi4 = -quart*pi
+            rns = -one
+         endif
+
+         ptx = rns*two*sin(pi4 - half*ptlat)*cos(ptlon)
+         pty =     two*sin(pi4 - half*ptlat)*sin(ptlon)
+         
+         latlon = .false.
+
+         ! Since we want greater fidelity for locating the points 
+         ! we send in the mid-points of the polygon edges too
+         ! BUT THAT MAKES THE POLYGON NON-CONVEX SOMETIMES AND 
+         ! THE CROSS-PRODUCT CHECK FAILS. SO USE CODE TO CHECK GENERAL
+         ! POLYGONS
+
+
+         k = 0
+         do i = ncorners, 1, -1
+            k = k+1
+            lat = cell_corner_lat(i)
+            lon = cell_corner_lon(i)
+            cell_corner_x(k) = rns*two*sin(pi4-half*lat)*cos(lon)
+            cell_corner_y(k) =     two*sin(pi4-half*lat)*sin(lon)
+            
+            j = i-1
+            if (j .eq. 0) j = ncorners  ! how do we do (j-1+n)%n in F90?
+
+            vec1_lat = cell_corner_lat(j)-cell_corner_lat(i)
+            vec1_lon = cell_corner_lon(j)-cell_corner_lon(i)
+            if (vec1_lon > pi) then
+               vec1_lon = vec1_lon - pi2
+            else if (vec1_lon < -pi) then
+               vec1_lon = vec1_lon + pi2
+            endif
+
+            do j = 1, npseg-1
+               k = k+1
+               lat = cell_corner_lat(i) + j*vec1_lat/npseg
+               lon = cell_corner_lon(i) + j*vec1_lon/npseg
+               cell_corner_x(k) = rns*two*sin(pi4-half*lat)*cos(lon)
+               cell_corner_y(k) =     two*sin(pi4-half*lat)*sin(lon)
+            enddo
+         enddo
+
+         !*** cell is so non-convex that no feasible center exists
+         !*** we have to fall back on a different algorithm
+
+         call ptinpolygen2(ptx, pty, k, cell_corner_x,
+     &        cell_corner_y, latlon, inpoly, lboundary, edgeid)
+
+         if (lboundary) then
+            edgeid = (edgeid-1)/npseg + 1 ! convert from index in 
+                                          ! multi-segmented cell to 
+                                          ! regular cell
+         endif
+      else
+
+         latlon = .true.
+         
+         whichpole = 0
+         if (cell_grid_id .eq. 1 .and. 
+     &        cell_add .eq. grid1_spole_cell) then
+            
+            whichpole = -1      ! S pole
+            call ptinpolarpoly(ptlat, ptlon, ncorners,
+     &           cell_corner_lat, cell_corner_lon,
+     &           latlon, whichpole, inpoly, lboundary, edgeid)
+            
+         else if (cell_grid_id .eq. 1 .and.
+     &           cell_add .eq. grid1_npole_cell) then
+            
+            whichpole =  1      ! N pole
+            call ptinpolarpoly(ptlat, ptlon, ncorners,
+     &           cell_corner_lat, cell_corner_lon,
+     &           latlon, whichpole, inpoly, lboundary, edgeid)
+            
+         else if (cell_grid_id .eq. 2 .and.
+     &           cell_add .eq. grid2_spole_cell) then
+            
+            whichpole = -1      ! S pole
+            call ptinpolarpoly(ptlat, ptlon, ncorners,
+     &           cell_corner_lat, cell_corner_lon,
+     &           latlon, whichpole, inpoly, lboundary, edgeid)
+            
+         else if (cell_grid_id .eq. 2 .and.
+     &           cell_add .eq. grid2_npole_cell) then
+            
+            whichpole =  1      ! N pole
+            call ptinpolarpoly(ptlat, ptlon, ncorners,
+     &           cell_corner_lat, cell_corner_lon,
+     &           latlon, whichpole, inpoly, lboundary, edgeid)
+            
+         else
+            
+      !***
+      !***  General cell
+      !***
+               
+            call ptinpoly(ptlat, ptlon, ncorners, 
+     &           cell_corner_lat, cell_corner_lon,
+     &           latlon, inpoly, lboundary, edgeid)
+
+         endif
+
+      endif
+
+      return
+
+!----------------------------------------------------------------------
+
+      end subroutine ptincell
+
+!**********************************************************************
+
+!**********************************************************************
+
+      subroutine ptinpoly(ptx, pty, ncorners, cell_corner_x,
+     &     cell_corner_y, latlon, inpoly, lboundary, edgeid)
+
+!----------------------------------------------------------------------
+!
+!     Check if point is in (convex) polygonal cell 
+!
+!----------------------------------------------------------------------
+
+      implicit none
+
+!----------------------------------------------------------------------
+!
+!     Input arguments
+!
+!----------------------------------------------------------------------
+
+      real (SCRIP_r8), intent(in) ::
+     &     ptx, pty             ! Point to check
+
+      integer (SCRIP_i4), intent(in) ::
+     &     ncorners             ! Number of polygon corners
+
+      real (SCRIP_r8), dimension(ncorners), intent(in) ::
+     &     cell_corner_x,       ! Coordinates of cell corners
+     &     cell_corner_y        ! Could be x-y or lat-lon or ...
+
+      logical (SCRIP_logical), intent(in) ::
+     &     latlon               ! Are coordinates in latlon space?
+
+!----------------------------------------------------------------------
+!
+!     Output arguments
+!
+!----------------------------------------------------------------------
+
+      logical (SCRIP_logical), intent(out) ::
+     &     inpoly               ! Is point in the polygon?
+
+      logical (SCRIP_logical), intent(out) ::
+     &     lboundary            ! Is point on the boundary of the polygon?
+
+      integer (SCRIP_i4), intent(out) ::
+     &     edgeid               ! if point is on boundary, which local
+                                ! edge is it on? (0 otherwise)
+
+!----------------------------------------------------------------------
+!
+!     Local variables
+!
+!----------------------------------------------------------------------
+
+      integer (SCRIP_i4) :: n, next_n
+
+      real (SCRIP_r8) :: x1, y1, x2, y2, vec1_x, vec1_y, vec2_x, vec2_y,
+     &     cross_product, minlon, maxlon, ptx_loc, pty_loc
+
+      real (SCRIP_r8), dimension(ncorners) ::
+     &     cell_corner_lat_loc, cell_corner_lon_loc
+
+
+      !***********************************************************
+      !*** We should just remove the latlon argument since that is
+      !*** the only coordinate system we are using it for
+      !***********************************************************      
+      
+
+      !***
+      !*** here we take the cross product of the vector making 
+      !*** up each cell side with the vector formed by the vertex
+      !*** and search point.  if all the cross products are 
+      !*** positive, the point is contained in the cell.
+      !***
+
+      inpoly = .false.
+      lboundary = .false.
+      edgeid = 0
+        
+      if (.not. latlon) then
+         
+         do n = 1, ncorners
+            next_n = MOD(n,ncorners) + 1
+            
+            x1 = cell_corner_x(n)
+            y1 = cell_corner_y(n)
+            x2 = cell_corner_x(next_n)
+            y2 = cell_corner_y(next_n)
+            
+            vec1_x = x2 - x1
+            vec1_y = y2 - y1
+            vec2_x = ptx - x1
+            vec2_y = pty - y1
+                        
+            cross_product = vec1_y*vec2_x - vec2_y*vec1_x
+            
+            !***
+            !***   if the cross product for a side is zero, the point 
+            !***   lies exactly on the side or the side is degenerate
+            !***   (zero length).  if degenerate, set the cross 
+            !***   product to a positive number.  
+            !***
+
+            if (abs(cross_product) < tiny) then
+               if (vec1_x*vec1_x + vec1_y*vec1_y .le. tiny*tiny) then
+                  cross_product = one
+               else
+                  lboundary = .true.
+                  edgeid = n
+               endif
+            else
+
+            !***
+            !*** if cross product is less than zero, this cell
+            !*** doesn't work
+            !***
+            !*** Should we say "if (cp < zero .and. abs(cp) > tiny)" ?
+
+               if (cross_product < zero) then
+                  inpoly = .false.
+                  lboundary = .false.
+                  return
+               endif
+            endif
+            
+         end do
+
+      else
+
+         !*** Checking in latlon space
+         !*** If the grid cell coordinates spans more than pi radians
+         !*** transform the coordinates so that they don't
+
+         cell_corner_lat_loc = cell_corner_x
+         cell_corner_lon_loc = cell_corner_y
+            
+         minlon =  9999.0
+         maxlon = -9999.0
+         do n = 1, ncorners
+            if (cell_corner_lon_loc(n) < minlon) then
+               minlon = cell_corner_lon_loc(n)
+            endif
+            if (cell_corner_lon_loc(n) > maxlon) then
+               maxlon = cell_corner_lon_loc(n)
+            endif
+         enddo
+
+         if (maxlon-minlon > pi) then
+
+            do n = 1, ncorners
+               if (cell_corner_lon_loc(n)-minlon > pi) then
+                  cell_corner_lon_loc(n) = cell_corner_lon_loc(n)-pi2
+               endif
+            enddo
+
+         endif
+
+         ptx_loc = ptx
+         pty_loc = pty
+         if (pty_loc - minlon > pi) then
+            pty_loc = pty_loc - pi2
+         else if (pty_loc - minlon < -pi) then
+            pty_loc = pty_loc + pi2
+         endif
+
+
+         do n = 1, ncorners
+            next_n = MOD(n,ncorners) + 1
+            
+            x1 = cell_corner_lat_loc(n)
+            y1 = cell_corner_lon_loc(n)
+            x2 = cell_corner_lat_loc(next_n)
+            y2 = cell_corner_lon_loc(next_n)
+            
+            vec1_x = x2 - x1
+            vec1_y = y2 - y1
+            vec2_x = ptx_loc - x1
+            vec2_y = pty_loc - y1
+                        
+            cross_product = vec1_y*vec2_x - vec2_y*vec1_x
+            
+            !***
+            !***   if the cross product for a side is zero, the point 
+            !***   lies exactly on the side or the side is degenerate
+            !***   (zero length).  if degenerate, set the cross 
+            !***   product to a positive number.  
+            !***
+
+            if (abs(cross_product) < tiny) then
+               if (vec1_x*vec1_x + vec1_y*vec1_y .le. tiny*tiny) then
+                  cross_product = one
+               else
+                  lboundary = .true.
+                  edgeid = n
+               endif
+            else
+
+            !***
+            !*** if cross product is less than zero, this cell
+            !*** doesn't work
+            !***
+            !*** Should we say "if (cp < zero .and. abs(cp) > tiny)" ?
+
+               if (cross_product < zero) then
+                  inpoly = .false.
+                  lboundary = .false.
+                  return
+               endif
+            endif
+            
+         end do
+
+      endif
+      !***
+      !*** if cross products all positive, we found the location
+      !***
+
+      inpoly = .true.
+      return
+
+!----------------------------------------------------------------------
+
+      end subroutine ptinpoly
+
+!**********************************************************************
+
+
+
+      subroutine ptinpolarpoly(ptx, pty, ncorners, cell_corner_x,
+     &     cell_corner_y, latlon, whichpole, inpoly, lboundary, edgeid)
+
+!----------------------------------------------------------------------
+!
+!     Check if point is in polygonal cell overlapping the pole
+!     Cannot check the containment as is in latlon space - We have 
+!     to check by connecting each edge of the polygon to the pole
+!     and check containment in the resulting quadrilateral in latlon space
+!
+!     The cell can be non-convex as long as the pole is 'visible' to
+!     all the edges of the polygon, i.e., we can connect the pole to 
+!     each edge of the polygon and form a triangle with positive area
+!
+!----------------------------------------------------------------------
+
+      implicit none
+
+!----------------------------------------------------------------------
+!
+!     Input arguments
+!
+!----------------------------------------------------------------------
+
+      real (SCRIP_r8), intent(in) ::
+     &     ptx, pty             ! Point to check
+
+      integer (SCRIP_i4), intent(in) ::
+     &     ncorners             ! Number of polygon corners
+
+      real (SCRIP_r8), dimension(ncorners), intent(in) ::
+     &     cell_corner_x,       ! Coordinates of cell corners
+     &     cell_corner_y        ! Could be x-y or lat-lon or ...
+
+      logical (SCRIP_logical), intent(in) ::
+     &     latlon               ! Are coordinates in latlon space?
+
+      integer (SCRIP_i4), intent(in) ::
+     &     whichpole            ! South or North pole      
+
+!----------------------------------------------------------------------
+!
+!     Output arguments
+!
+!----------------------------------------------------------------------
+
+      logical (SCRIP_logical), intent(out) ::
+     &     inpoly               ! Is point in the polygon?
+
+      logical (SCRIP_logical), intent(out) ::
+     &     lboundary            ! Is point on the boundary of the polygon?
+
+      integer (SCRIP_i4), intent(out) ::
+     &     edgeid               ! if point is on boundary, which local
+                                ! edge is it on? (0 otherwise)
+
+!----------------------------------------------------------------------
+!
+!     Local variables
+!
+!----------------------------------------------------------------------
+
+      integer (SCRIP_i4) :: n, next_n, ledgeid
+
+      real (SCRIP_r8), dimension(4) ::
+     &     pquad_corner_x,       ! Coordinates of polar quad
+     &     pquad_corner_y        
+
+      real (SCRIP_r8) :: x1, y1, x2, y2, vec1_x, vec1_y, vec2_x, vec2_y,
+     &     cross_product, pole_lat
+
+      pole_lat = whichpole*pih
+
+      !***
+      !*** This is a polygon that overlaps the pole
+      !*** A normal point in polygon check could fail
+      !*** So, with each edge of the polygon form a quadrilateral 
+      !*** in latlon space using the polar latitude and the longitude
+      !*** values of the endpoints of the edge. Then check containment
+      !*** of the point in this quadrilateral
+      !***
+      
+      inpoly = .false.
+      lboundary = .false.
+      
+      do n = 1, ncorners
+         next_n = MOD(n,ncorners) + 1
+
+         pquad_corner_x(1) = cell_corner_x(n)
+         pquad_corner_y(1) = cell_corner_y(n)
+         pquad_corner_x(2) = cell_corner_x(next_n)
+         pquad_corner_y(2) = cell_corner_y(next_n)
+         pquad_corner_x(3) = pole_lat
+         pquad_corner_y(3) = cell_corner_y(next_n)
+         pquad_corner_x(4) = pole_lat
+         pquad_corner_y(4) = cell_corner_y(n)
+
+         
+         call ptinpoly(ptx,pty,4,pquad_corner_x,pquad_corner_y, 
+     &        latlon,inpoly,lboundary, ledgeid)
+
+         if (inpoly) then
+
+            if (lboundary) then
+
+               !***
+               !*** Check to see if the lboundary flag is being
+               !*** triggered by the outer edge of the polygon or 
+               !*** by one of the artificial internal edges            
+               !***
+
+               vec1_x = pquad_corner_x(2) - pquad_corner_x(1)
+               vec1_y = pquad_corner_y(2) - pquad_corner_y(1)
+               vec2_x = ptx - pquad_corner_x(1)
+               vec2_y = pty - pquad_corner_y(1)
+
+
+               if (latlon) then
+
+                  !***
+                  !*** check for 0,2pi crossings
+                  !***
+
+                  if (vec1_y >  pi) vec1_y = vec1_y - pi2
+                  if (vec1_y < -pi) vec1_y = vec1_y + pi2
+                  if (vec2_y >  pi) vec2_y = vec2_y - pi2
+                  if (vec2_y < -pi) vec2_y = vec2_y + pi2
+               
+               endif
+
+               cross_product = vec1_y*vec2_x - vec2_y*vec1_x
+
+               !***
+               !***   if the cross product for a side is zero, the point 
+               !***   lies exactly on the side or the side is degenerate
+               !***   (zero length).  if degenerate, set the cross 
+               !***   product to a positive number.  
+               !***
+
+               if (abs(cross_product) < tiny) then
+                  if (vec1_x .eq. zero .and. vec1_y .eq. zero) then
+                     cross_product = one
+                     lboundary = .false.
+                  else
+                     edgeid = n
+                     lboundary = .true.
+                  endif
+               else
+                  lboundary = .false.
+               endif
+            endif               ! if (lboundary)
+
+            return              ! pt in polygon
+
+         endif                  ! if (inpoly)
+
+      end do
+
+      return                    ! pt outside polygon
+
+!----------------------------------------------------------------------
+
+      end subroutine ptinpolarpoly
+
+!**********************************************************************
+
+
+
+      subroutine ptinpolygen(ptx, pty, ncorners, cell_corner_x,
+     &     cell_corner_y, cell_center_x, cell_center_y,
+     &     latlon, inpoly, lboundary, edgeid)
+
+!----------------------------------------------------------------------
+!
+!     Check if point is in general (convex or mildly non-convex) 
+!     polygonal cell by connecting each edge of the polygon to a
+!     a central point (average of vertices) and check containment in 
+!     the resulting triangle
+!
+!     The cell can be non-convex as long as the 'center' is 'visible' to
+!     all the edges of the polygon, i.e., we can connect the 'center' to 
+!     each edge of the polygon and form a triangle with positive area
+!
+!----------------------------------------------------------------------
+
+      implicit none
+
+!----------------------------------------------------------------------
+!
+!     Input arguments
+!
+!----------------------------------------------------------------------
+
+      real (SCRIP_r8), intent(in) ::
+     &     ptx, pty             ! Point to check
+
+      integer (SCRIP_i4), intent(in) ::
+     &     ncorners             ! Number of polygon corners
+
+      real (SCRIP_r8), dimension(ncorners), intent(in) ::
+     &     cell_corner_x,       ! Coordinates of cell corners
+     &     cell_corner_y        ! Could be x-y or lat-lon or ...
+
+      real (SCRIP_r8), intent(in) ::
+     &     cell_center_x,
+     &     cell_center_y
+
+      logical (SCRIP_logical), intent(in) ::
+     &     latlon               ! Are coordinates in latlon space?
+
+!----------------------------------------------------------------------
+!
+!     Output arguments
+!
+!----------------------------------------------------------------------
+
+      logical (SCRIP_logical), intent(out) ::
+     &     inpoly               ! Is point in the polygon?
+
+      logical (SCRIP_logical), intent(out) ::
+     &     lboundary            ! Is point on the boundary of the polygon?
+
+      integer (SCRIP_i4), intent(out) ::
+     &     edgeid               ! if point is on boundary, which local
+                                ! edge is it on? (0 otherwise)
+
+!----------------------------------------------------------------------
+!
+!     Local variables
+!
+!----------------------------------------------------------------------
+
+      integer (SCRIP_i4) :: n, next_n, ledgeid
+
+      real (SCRIP_r8), dimension(3) ::
+     &     tri_corner_x,       ! Coordinates of triangle
+     &     tri_corner_y        
+
+      real (SCRIP_r8) :: x1, y1, x2, y2, vec1_x, vec1_y, vec2_x, vec2_y,
+     &     cross_product
+
+
+      !***
+      !*** So, with each edge of the polygon form a triangle
+      !*** by connecting a 'central' point to the endpoints of 
+      !*** the edge. Then check containment of the point in this tri
+      !***
+      
+      inpoly = .false.
+      lboundary = .false.
+      
+      do n = 1, ncorners
+         next_n = MOD(n,ncorners) + 1
+
+         tri_corner_x(1) = cell_corner_x(n)
+         tri_corner_y(1) = cell_corner_y(n)
+         tri_corner_x(2) = cell_corner_x(next_n)
+         tri_corner_y(2) = cell_corner_y(next_n)
+         tri_corner_x(3) = cell_center_x
+         tri_corner_y(3) = cell_center_y
+
+         vec1_x = tri_corner_x(2) - tri_corner_x(1)
+         vec1_y = tri_corner_y(2) - tri_corner_y(1)
+
+         !*** Skip triangles arising from degenerate edges
+
+         if (vec1_x*vec1_x+vec1_y*vec1_y .le. tiny*tiny) cycle
+         
+         call ptinpoly(ptx,pty,3,tri_corner_x,tri_corner_y, 
+     &        latlon,inpoly,lboundary, ledgeid)
+
+         if (inpoly) then
+
+            if (lboundary) then
+
+               !***
+               !*** Check to see if the lboundary flag is being
+               !*** triggered by the outer edge of the polygon or 
+               !*** by one of the artificial internal edges            
+               !***
+
+               vec2_x = ptx - tri_corner_x(1)
+               vec2_y = pty - tri_corner_y(1)
+
+
+               if (latlon) then
+
+                  !***
+                  !*** check for 0,2pi crossings
+                  !***
+
+                  if (vec1_y >  pi) vec1_y = vec1_y - pi2
+                  if (vec1_y < -pi) vec1_y = vec1_y + pi2
+                  if (vec2_y >  pi) vec2_y = vec2_y - pi2
+                  if (vec2_y < -pi) vec2_y = vec2_y + pi2
+               
+               endif
+
+               cross_product = vec1_y*vec2_x - vec2_y*vec1_x
+
+               !***
+               !***   if the cross product for a side is zero, the point 
+               !***   lies exactly on the side or the side is degenerate
+               !***   (zero length).  if degenerate, set the cross 
+               !***   product to a positive number.  
+               !***
+
+               if (abs(cross_product) < tiny) then
+                  if (vec1_x*vec1_x+vec1_y*vec1_y .le. tiny*tiny) then
+                     cross_product = one
+                     lboundary = .false.
+                  else
+                     edgeid = n
+                     lboundary = .true.
+                  endif
+               else
+                  lboundary = .false.
+               endif
+            endif               ! if (lboundary)
+
+            return              ! pt in polygon
+
+         endif                  ! if (inpoly)
+
+      end do
+
+      return                    ! pt outside polygon
+
+!----------------------------------------------------------------------
+
+      end subroutine ptinpolygen
+
+!**********************************************************************
+
+
+
+      subroutine ptinpolygen2(ptx, pty, ncorners, cell_corner_x,
+     &     cell_corner_y, latlon, inpoly, lboundary, edgeid)
+
+!----------------------------------------------------------------------
+!
+!     Check if point is in general (convex or mildly non-convex) 
+!     polygonal cell by connecting each edge of the polygon to a
+!     a central point (average of vertices) and check containment in 
+!     the resulting triangle
+!
+!     The cell can be non-convex as long as the 'center' is 'visible' to
+!     all the edges of the polygon, i.e., we can connect the 'center' to 
+!     each edge of the polygon and form a triangle with positive area
+!
+!----------------------------------------------------------------------
+
+      implicit none
+
+!----------------------------------------------------------------------
+!
+!     Input arguments
+!
+!----------------------------------------------------------------------
+
+      real (SCRIP_r8), intent(in) ::
+     &     ptx, pty             ! Point to check
+
+      integer (SCRIP_i4), intent(in) ::
+     &     ncorners             ! Number of polygon corners
+
+      real (SCRIP_r8), dimension(ncorners), intent(in) ::
+     &     cell_corner_x,       ! Coordinates of cell corners
+     &     cell_corner_y        ! Could be x-y or lat-lon or ...
+
+      logical (SCRIP_logical), intent(in) ::
+     &     latlon               ! Are coordinates in latlon space?
+
+!----------------------------------------------------------------------
+!
+!     Output arguments
+!
+!----------------------------------------------------------------------
+
+      logical (SCRIP_logical), intent(out) ::
+     &     inpoly               ! Is point in the polygon?
+
+      logical (SCRIP_logical), intent(out) ::
+     &     lboundary            ! Is point on the boundary of the polygon?
+
+      integer (SCRIP_i4), intent(out) ::
+     &     edgeid               ! if point is on boundary, which local
+                                ! edge is it on? (0 otherwise)
+
+!----------------------------------------------------------------------
+!
+!     Local variables
+!
+!----------------------------------------------------------------------
+
+      integer (SCRIP_i4) :: c, n, next_n
+
+      real (SCRIP_r8) :: x1, y1, x2, y2, vec1_x, vec1_y, vec2_x, vec2_y,
+     &     vec3_x, vec3_y, vec1_len, vec2_len, vec3_len,
+     &     cross_product, dot_product
+
+
+      !***
+      !*** So, with each edge of the polygon form a triangle
+      !*** by connecting a 'central' point to the endpoints of 
+      !*** the edge. Then check containment of the point in this tri
+      !***
+      
+      inpoly = .false.
+      lboundary = .false.
+      
+      c = 0
+      do n = 1, ncorners
+         next_n = MOD(n,ncorners) + 1
+
+         x1 = cell_corner_x(n)
+         y1 = cell_corner_y(n)
+         x2 = cell_corner_x(next_n)
+         y2 = cell_corner_y(next_n)
+
+         if (((y1 > pty .and. y2 <= pty) .or.
+     &        (y2 > pty .and. y1 <= pty)) .and.
+     &        (ptx <= (x1 + (pty-y1)*(x2-x1)/(y2-y1)))) then
+
+            c = 1 - c
+            
+         endif
+      enddo
+
+      if (c .eq. 1) inpoly = .true.
+         
+
+      !*** Check if the point is on the boundary of the polygon
+
+      do n = 1, ncorners
+
+         next_n = MOD(n,ncorners) + 1
+
+         x1 = cell_corner_x(n)
+         y1 = cell_corner_y(n)
+         x2 = cell_corner_x(next_n)
+         y2 = cell_corner_y(next_n)
+
+         vec1_x = x2 - x1
+         vec1_y = y2 - y1
+         vec1_len = sqrt(vec1_x*vec1_x + vec1_y*vec1_y)
+         vec1_x = vec1_x/vec1_len
+         vec1_y = vec1_y/vec1_len
+
+         vec2_x = ptx - x1
+         vec2_y = pty - y1
+         vec2_len = sqrt(vec2_x*vec2_x + vec2_y*vec2_y)
+
+         cross_product = vec1_x*vec2_y - vec2_x*vec1_y
+         if (abs(cross_product) > tiny .and. vec2_len > tiny) then
+            cross_product = cross_product/vec2_len
+         endif
+
+         if (abs(cross_product) < 1e5*tiny .and. 
+     &        abs(cross_product) > 10*tiny) then
+
+            !*** Sometimes when the point is too close to a vertex
+            !*** then the cross product computation has errors due
+            !*** to subtraction of two small numbers - So check w.r.t.
+            !*** other vertex of the segment as well
+
+            vec3_x = ptx - x2
+            vec3_y = pty - y2
+            vec3_len = sqrt(vec3_x*vec3_x + vec3_y*vec3_y)
+
+            cross_product = -vec1_x*vec3_y + vec1_y*vec3_x
+            if (abs(cross_product) > tiny .and. vec3_len > tiny) then
+               !***
+               !*** Normalize only if we won't be dividing two small numbers
+               !***
+               cross_product = cross_product/vec3_len
+            endif
+         endif
+
+         if (abs(cross_product) < 10*tiny) then
+
+            if (vec1_x*vec1_x+vec1_y*vec1_y .le. tiny*tiny) then
+               cross_product = one
+            else
+               dot_product = vec1_x*vec2_x + vec1_y*vec2_y
+
+               if (dot_product >= 0 .and. dot_product <= vec1_len) then
+                  inpoly = .true.
+                  lboundary = .true.
+                  edgeid = n
+                  exit
+               endif
+            endif
+         endif
+
+      enddo
+         
+      return   
+
+!----------------------------------------------------------------------
+
+      end subroutine ptinpolygen2
+
+!**********************************************************************
+
+
+
+
+
+!----------------------------------------------------------------------
+!
+!----------------------------------------------------------------------
+
+      subroutine get_srch_cells(cell_add, cell_grid_num, srch_grid_num, 
+     &     num_srch_cells, srch_add, srch_corners, 
+     &     srch_corner_lat, srch_corner_lon,
+     &     srch_center_lat, srch_center_lon)
+
+!----------------------------------------------------------------------
+!
+!     Input arguments
+!
+!----------------------------------------------------------------------
+
+      integer (SCRIP_i4), intent(in) ::
+     &     cell_add,         ! cell in whose nbrhood we must find other cells
+     &     cell_grid_num,    ! grid number from which 'cell_add' is
+     &     srch_grid_num     ! grid number in which we must find search cells
+
+!----------------------------------------------------------------------
+!
+!     Output arguments
+!
+!----------------------------------------------------------------------
+
+      integer (SCRIP_i4), intent(out) ::
+     &     num_srch_cells,
+     &     srch_corners         ! Number of corners for search cells
+
+      integer (SCRIP_i4), dimension(:), allocatable, intent(out) ::
+     &     srch_add             ! Global addresses of search cells
+
+      real (SCRIP_r8), dimension(:,:), allocatable, intent(out) ::
+     &     srch_corner_lat, srch_corner_lon
+
+      real (SCRIP_r8), dimension(:), allocatable, intent(out) ::
+     &     srch_center_lat, srch_center_lon
+
+
+!-----------------------------------------------------------------------
+!
+!     Local arguments
+!
+!-----------------------------------------------------------------------
+
+      logical (SCRIP_logical), dimension(:), allocatable ::
+     &     srch_mask
+
+      integer (SCRIP_i4), save ::
+     &     num_srch_cells_loc,
+     &     srch_corners_loc     ! Number of corners for search cells
+
+      integer (SCRIP_i4), dimension(:), allocatable, save ::
+     &     srch_add_loc             ! Global addresses of search cells
+
+      real (SCRIP_r8), dimension(:,:), allocatable, save ::
+     &     srch_corner_lat_loc, 
+     &     srch_corner_lon_loc
+      
+      real (SCRIP_r8), dimension(:), allocatable, save ::
+     &     srch_center_lat_loc,
+     &     srch_center_lon_loc
+
+      integer (SCRIP_i4), save ::
+     &     last_cell_add, 
+     &     last_cell_grid_num, 
+     &     last_srch_grid_num
+
+      logical (SCRIP_logical), save ::
+     &     first_call=.true.
+
+      integer (SCRIP_i4) :: grid1_add, grid2_add, max_add, min_add,
+     &     n
+
+!-----------------------------------------------------------------------
+
+      num_srch_cells = 0
+         
+      !***
+      !*** restrict searches first using search bins
+      !***
+
+      if (last_cell_add /= cell_add .or. 
+     &     last_cell_grid_num /= cell_grid_num .or.
+     &     last_srch_grid_num /= srch_grid_num) then         
+
+         if (first_call) then
+            first_call = .false.
+            num_srch_cells_loc = 0
+            srch_corners_loc = 0
+            last_cell_add = 0
+            last_cell_grid_num = 0
+            last_srch_grid_num = 0
+         else
+            if (num_srch_cells_loc .gt. 0) then
+               deallocate(srch_add_loc,
+     &              srch_corner_lat_loc,srch_corner_lon_loc,
+     &              srch_center_lat_loc,srch_center_lon_loc)
+            endif
+         endif
+
+
+         if (cell_grid_num == 1) then
+
+            if (srch_grid_num == 1) then
+
+               !*** Grid 1 neighbors of grid 1 cell
+
+               allocate(srch_mask(grid1_size))
+
+               min_add = grid1_size
+               max_add = 1
+               do n=1,num_srch_bins
+                  if (cell_add >= bin_addr1(1,n) .and.
+     &                 cell_add <= bin_addr1(2,n)) then
+                     min_add = min(min_add, bin_addr1(1,n))
+                     max_add = max(max_add, bin_addr1(2,n))
+                  endif
+               end do
+
+               !***
+               !*** further restrict searches using bounding boxes
+               !***
+
+               num_srch_cells_loc = 0
+               do grid1_add = min_add,max_add
+                  srch_mask(grid1_add) = 
+     &                 (grid1_bound_box(1,grid1_add) <= 
+     &                 grid1_bound_box(2,cell_add)) .and.
+     &                 (grid1_bound_box(2,grid1_add) >= 
+     &                 grid1_bound_box(1,cell_add)) .and.
+     &                 (grid1_bound_box(3,grid1_add) <= 
+     &                 grid1_bound_box(4,cell_add)) .and.
+     &                 (grid1_bound_box(4,grid1_add) >= 
+     &                 grid1_bound_box(3,cell_add))
+                  
+                  if (srch_mask(grid1_add)) 
+     &                 num_srch_cells_loc = num_srch_cells_loc+1
+               end do
+
+               !***
+               !*** create search arrays
+               !***
+
+               allocate(srch_add_loc(num_srch_cells_loc),
+     &            srch_corner_lat_loc(grid1_corners,num_srch_cells_loc),
+     &            srch_corner_lon_loc(grid1_corners,num_srch_cells_loc),
+     &            srch_center_lat_loc(num_srch_cells_loc),
+     &            srch_center_lon_loc(num_srch_cells_loc))
+
+               n = 0
+               do grid1_add = min_add,max_add
+                  if (srch_mask(grid1_add)) then
+                     n = n+1
+                     srch_add_loc(n) = grid1_add
+                     srch_corner_lat_loc(:,n) = 
+     &                    grid1_corner_lat(:,grid1_add)
+                     srch_corner_lon_loc(:,n) = 
+     &                    grid1_corner_lon(:,grid1_add)
+                     srch_center_lat_loc(n) = 
+     &                    grid1_center_lat(grid1_add)
+                     srch_center_lon_loc(n) = 
+     &                    grid1_center_lon(grid1_add)
+                  endif
+               end do
+
+               srch_corners_loc = grid1_corners
+
+               deallocate(srch_mask)
+
+            else
+            
+               !*** Grid 2 neighbors of grid 1 cell
+
+               allocate(srch_mask(grid2_size))
+
+               min_add = grid2_size
+               max_add = 1
+               do n=1,num_srch_bins
+                  if (cell_add >= bin_addr1(1,n) .and.
+     &                 cell_add <= bin_addr1(2,n)) then
+                     min_add = min(min_add, bin_addr2(1,n))
+                     max_add = max(max_add, bin_addr2(2,n))
+                  endif
+               end do
+
+               !***
+               !*** further restrict searches using bounding boxes
+               !***
+
+               num_srch_cells_loc = 0
+               do grid2_add = min_add,max_add
+                  srch_mask(grid2_add) = 
+     &                 (grid2_bound_box(1,grid2_add) <= 
+     &                 grid1_bound_box(2,cell_add)) .and.
+     &                 (grid2_bound_box(2,grid2_add) >= 
+     &                 grid1_bound_box(1,cell_add)) .and.
+     &                 (grid2_bound_box(3,grid2_add) <= 
+     &                 grid1_bound_box(4,cell_add)) .and.
+     &                 (grid2_bound_box(4,grid2_add) >= 
+     &                 grid1_bound_box(3,cell_add))
+
+
+                  
+                  if (srch_mask(grid2_add)) 
+     &                 num_srch_cells_loc = num_srch_cells_loc+1
+               end do
+
+               !***
+               !*** create search arrays
+               !***
+
+               allocate(srch_add_loc(num_srch_cells_loc),
+     &           srch_corner_lat_loc(grid2_corners,num_srch_cells_loc),
+     &           srch_corner_lon_loc(grid2_corners,num_srch_cells_loc),
+     &           srch_center_lat_loc(num_srch_cells_loc),
+     &           srch_center_lon_loc(num_srch_cells_loc))
+
+               n = 0
+               do grid2_add = min_add,max_add
+                  if (srch_mask(grid2_add)) then
+                     n = n+1
+                     srch_add_loc(n) = grid2_add
+                     srch_corner_lat_loc(:,n) = 
+     &                    grid2_corner_lat(:,grid2_add)
+                     srch_corner_lon_loc(:,n) = 
+     &                    grid2_corner_lon(:,grid2_add)
+                     srch_center_lat_loc(n) = 
+     &                    grid2_center_lat(grid2_add)
+                     srch_center_lon_loc(n) = 
+     &                    grid2_center_lon(grid2_add)
+                  endif
+               end do
+               
+               srch_corners_loc = grid2_corners
+
+               deallocate(srch_mask)
+
+            endif
+
+         else
+
+            if (srch_grid_num == 1) then
+
+               !*** Grid 1 neighbors of grid 2 cell
+
+               allocate(srch_mask(grid1_size))
+
+               min_add = grid1_size
+               max_add = 1
+               do n=1,num_srch_bins
+                  if (cell_add >= bin_addr2(1,n) .and.
+     &                 cell_add <= bin_addr2(2,n)) then
+                     min_add = min(min_add, bin_addr1(1,n))
+                     max_add = max(max_add, bin_addr1(2,n))
+                  endif
+               end do
+
+              !***
+              !*** further restrict searches using bounding boxes
+              !***
+
+               num_srch_cells_loc = 0
+               do grid1_add = min_add,max_add
+                  srch_mask(grid1_add) = 
+     &                 (grid1_bound_box(1,grid1_add) <= 
+     &                 grid2_bound_box(2,cell_add)) .and.
+     &                 (grid1_bound_box(2,grid1_add) >= 
+     &                 grid2_bound_box(1,cell_add)) .and.
+     &                 (grid1_bound_box(3,grid1_add) <= 
+     &                 grid2_bound_box(4,cell_add)) .and.
+     &                 (grid1_bound_box(4,grid1_add) >= 
+     &                 grid2_bound_box(3,cell_add))
+
+                  if (srch_mask(grid1_add)) 
+     &                 num_srch_cells_loc = num_srch_cells_loc+1
+               end do
+
+               !***
+               !*** create search arrays
+               !***
+
+               allocate(srch_add_loc(num_srch_cells_loc),
+     &           srch_corner_lat_loc(grid1_corners,num_srch_cells_loc),
+     &           srch_corner_lon_loc(grid1_corners,num_srch_cells_loc),
+     &           srch_center_lat_loc(num_srch_cells_loc),
+     &           srch_center_lon_loc(num_srch_cells_loc))
+
+               n = 0
+               do grid1_add = min_add,max_add
+                  if (srch_mask(grid1_add)) then
+                     n = n+1
+                     srch_add_loc(n) = grid1_add
+                     srch_corner_lat_loc(:,n) = 
+     &                    grid1_corner_lat(:,grid1_add)
+                     srch_corner_lon_loc(:,n) = 
+     &                    grid1_corner_lon(:,grid1_add)
+                     srch_center_lat_loc(n) = 
+     &                    grid1_center_lat(grid1_add)
+                     srch_center_lon_loc(n) = 
+     &                    grid1_center_lon(grid1_add)
+                  endif
+               end do
+
+               srch_corners_loc = grid1_corners
+
+               deallocate(srch_mask)
+
+            else
+
+               !*** Grid 2 neighbors of grid 2 cell
+
+               allocate(srch_mask(grid2_size))
+
+               min_add = grid2_size
+               max_add = 1
+               do n=1,num_srch_bins
+                  if (cell_add >= bin_addr2(1,n) .and.
+     &                 cell_add <= bin_addr2(2,n)) then
+                     min_add = min(min_add, bin_addr2(1,n))
+                     max_add = max(max_add, bin_addr2(2,n))
+                  endif
+               end do
+
+               !***
+               !*** further restrict searches using bounding boxes
+               !***
+
+               num_srch_cells_loc = 0
+               do grid2_add = min_add,max_add
+                  srch_mask(grid2_add) = 
+     &                 (grid2_bound_box(1,grid2_add) <= 
+     &                 grid2_bound_box(2,cell_add)) .and.
+     &                 (grid2_bound_box(2,grid2_add) >= 
+     &                 grid2_bound_box(1,cell_add)) .and.
+     &                 (grid2_bound_box(3,grid2_add) <= 
+     &                 grid2_bound_box(4,cell_add)) .and.
+     &                 (grid2_bound_box(4,grid2_add) >= 
+     &                 grid2_bound_box(3,cell_add))
+
+                  if (srch_mask(grid2_add)) 
+     &                 num_srch_cells_loc = num_srch_cells_loc+1
+               end do
+               
+               !***
+               !*** create search arrays
+               !***
+
+               allocate(srch_add_loc(num_srch_cells_loc),
+     &           srch_corner_lat_loc(grid2_corners,num_srch_cells_loc),
+     &           srch_corner_lon_loc(grid2_corners,num_srch_cells_loc),
+     &           srch_center_lat_loc(num_srch_cells_loc),
+     &           srch_center_lon_loc(num_srch_cells_loc))
+
+               n = 0
+               do grid2_add = min_add,max_add
+                  if (srch_mask(grid2_add)) then
+                     n = n+1
+                     srch_add_loc(n) = grid2_add
+                     srch_corner_lat_loc(:,n) = 
+     &                    grid2_corner_lat(:,grid2_add)
+                     srch_corner_lon_loc(:,n) = 
+     &                    grid2_corner_lon(:,grid2_add)
+                     srch_center_lat_loc(n) = 
+     &                    grid2_center_lat(grid2_add)
+                     srch_center_lon_loc(n) = 
+     &                    grid2_center_lon(grid2_add)
+                  endif
+               end do
+
+               srch_corners_loc = grid2_corners
+
+               deallocate(srch_mask)
+
+            endif
+
+         endif
+
+         last_cell_add = cell_add
+         last_cell_grid_num = cell_grid_num
+         last_srch_grid_num = srch_grid_num
+
+      endif
+
+
+      num_srch_cells = num_srch_cells_loc
+
+      if (num_srch_cells .eq. 0) then
+         deallocate(srch_add_loc,srch_corner_lat_loc,
+     &        srch_corner_lon_loc,srch_center_lat_loc,
+     &        srch_center_lon_loc)
+         return
+      endif
+
+      srch_corners = srch_corners_loc
+      allocate(srch_add(num_srch_cells),
+     &     srch_corner_lat(srch_corners,num_srch_cells),
+     &     srch_corner_lon(srch_corners,num_srch_cells),
+     &     srch_center_lat(num_srch_cells),
+     &     srch_center_lon(num_srch_cells))
+      srch_add = srch_add_loc
+      srch_corner_lat = srch_corner_lat_loc
+      srch_corner_lon = srch_corner_lon_loc
+      srch_center_lat = srch_center_lat_loc
+      srch_center_lon = srch_center_lon_loc
+
+
+      end subroutine get_srch_cells
+!**********************************************************************
+
+
+!----------------------------------------------------------------------
+!
+!     Find cell adjacent to edge (edge_id) of given cell (cell_add)
+!
+!----------------------------------------------------------------------
+
+
+      subroutine find_adj_cell(cell_add, edge_id, cell_grid_num, 
+     &     adj_add) 
+
+!----------------------------------------------------------------------
+!
+!     Input variables
+!
+!----------------------------------------------------------------------
+
+      integer (SCRIP_i4), intent(in) ::
+     &     cell_add,              ! cell whose edge we are checking
+     &     edge_id,               ! index of edge that we are check
+     &     cell_grid_num          ! grid to which cell belongs
+
+!----------------------------------------------------------------------
+!
+!     Output variables
+!
+!----------------------------------------------------------------------
+
+      integer (SCRIP_i4), intent(out) :: adj_add
+
+!----------------------------------------------------------------------
+!
+!     Local variables
+!
+!----------------------------------------------------------------------
+
+      integer (SCRIP_i4) :: i, inx, n, global_add
+      logical (SCRIP_logical) :: found
+      real (SCRIP_r8) :: lat1, lon1, lat2, lon2
+
+      logical (SCRIP_logical), save ::
+     &     first_call=.true.
+
+      integer (SCRIP_i4), save :: 
+     &     last_cell,
+     &     last_cell_grid_num,
+     &     num_srch_cells, 
+     &     srch_corners
+
+      integer (SCRIP_i4), dimension(:), allocatable, save :: 
+     &     srch_add
+      real (SCRIP_r8), dimension(:,:), allocatable, save ::
+     &     srch_corner_lat, srch_corner_lon
+
+      real (SCRIP_r8), dimension(:), allocatable, save ::
+     &     srch_center_lat, srch_center_lon
+
+
+
+      adj_add = 0
+
+      if (cell_grid_num .eq. 1) then
+
+         i = edge_id
+         inx = 1 + mod(edge_id,grid1_corners)
+
+         lat1 = grid1_corner_lat(i,cell_add)
+         lon1 = grid1_corner_lon(i,cell_add)
+         lat2 = grid1_corner_lat(inx,cell_add)
+         lon2 = grid1_corner_lon(inx,cell_add)
+
+         !***
+         !*** Often the cell with the next or previous index is 
+         !*** the adjacent cell. Check that first
+         !***
+
+         if (cell_add .lt. grid1_size) then
+
+            global_add = cell_add + 1
+
+            do i = 1, grid1_corners
+               inx = mod(i,grid1_corners)+1
+               if (abs(grid1_corner_lat(inx,global_add)-lat1) .le. tiny 
+     &              .and.
+     &              abs(grid1_corner_lat(i,global_add)-lat2) .le. tiny 
+     &              .and.
+     &              abs(grid1_corner_lon(inx,global_add)-lon1) .le. tiny 
+     &              .and.
+     &              abs(grid1_corner_lon(i,global_add)-lon2) .le. tiny) 
+     &              then
+                  
+                  adj_add = global_add
+                  return
+               endif
+            enddo
+
+         endif
+         
+         if (cell_add .gt. 1) then
+            
+            global_add = cell_add - 1
+
+            do i = 1, grid1_corners
+               inx = mod(i,grid1_corners)+1
+               if (abs(grid1_corner_lat(inx,global_add)-lat1) .le. tiny 
+     &              .and.
+     &              abs(grid1_corner_lat(i,global_add)-lat2) .le. tiny 
+     &              .and.
+     &              abs(grid1_corner_lon(inx,global_add)-lon1) .le. tiny 
+     &              .and.
+     &              abs(grid1_corner_lon(i,global_add)-lon2) .le. tiny) 
+     &              then
+                  
+                  adj_add = global_add
+                  return
+               endif
+            enddo
+
+         endif
+         
+         
+
+      else
+
+         i = edge_id
+         inx = 1 + mod(edge_id,grid2_corners)
+
+         lat1 = grid2_corner_lat(i,cell_add)
+         lon1 = grid2_corner_lon(i,cell_add)
+         lat2 = grid2_corner_lat(inx,cell_add)
+         lon2 = grid2_corner_lon(inx,cell_add)
+
+
+         !***
+         !*** Often the cell with the next or previous index is 
+         !*** the adjacent cell. Check that first
+         !***
+
+         if (cell_add .lt. grid2_size) then
+
+            global_add = cell_add + 1
+
+            do i = 1, grid2_corners
+               inx = mod(i,grid2_corners)+1
+               if (abs(grid2_corner_lat(inx,global_add)-lat1) .le. tiny 
+     &              .and.
+     &              abs(grid2_corner_lat(i,global_add)-lat2) .le. tiny 
+     &              .and.
+     &              abs(grid2_corner_lon(inx,global_add)-lon1) .le. tiny 
+     &              .and.
+     &              abs(grid2_corner_lon(i,global_add)-lon2) .le. tiny) 
+     &              then
+                  
+                  adj_add = global_add
+                  return
+               endif
+            enddo
+
+         endif
+         
+         if (cell_add .gt. 1) then
+            
+            global_add = cell_add - 1
+
+            do i = 1, grid2_corners
+               inx = mod(i,grid2_corners)+1
+               if (abs(grid2_corner_lat(inx,global_add)-lat1) .le. tiny 
+     &              .and.
+     &              abs(grid2_corner_lat(i,global_add)-lat2) .le. tiny 
+     &              .and.
+     &              abs(grid2_corner_lon(inx,global_add)-lon1) .le. tiny 
+     &              .and.
+     &              abs(grid2_corner_lon(i,global_add)-lon2) .le. tiny) 
+     &              then
+                  
+                  adj_add = global_add
+                  return
+               endif
+            enddo
+
+         endif
+         
+
+      endif
+
+
+      if (cell_add /= last_cell .or. 
+     &     cell_grid_num /= last_cell_grid_num) then
+
+         last_cell = cell_add
+         last_cell_grid_num = cell_grid_num
+
+         if (first_call) then
+            first_call = .false.
+            last_cell = 0
+            last_cell_grid_num = 0
+         else
+            if (num_srch_cells .gt. 0) then
+               deallocate(srch_add, srch_corner_lat, srch_corner_lon,
+     &         srch_center_lat, srch_center_lon)
+            endif
+         endif
+
+         call get_srch_cells(cell_add, cell_grid_num, cell_grid_num,
+     &        num_srch_cells, srch_add, srch_corners, srch_corner_lat,
+     &        srch_corner_lon, srch_center_lat, srch_center_lon)
+
+      endif
+
+
+      found = .false.
+      do n = 1, num_srch_cells
+         
+         global_add = srch_add(n)
+
+         do i = 1, srch_corners
+            inx = mod(i,srch_corners)+1
+            if (abs(srch_corner_lat(inx,n)-lat1) .le. tiny 
+     &           .and.
+     &           abs(srch_corner_lat(i,n)-lat2) .le. tiny 
+     &           .and.
+     &           abs(srch_corner_lon(inx,n)-lon1) .le. tiny 
+     &           .and.
+     &           abs(srch_corner_lon(i,n)-lon2) .le. tiny) 
+     &           then
+
+               adj_add = global_add
+               found = .true.
+
+               exit
+            endif
+         enddo
+
+         if (found) exit
+         
+      enddo
+
+      return
+      end subroutine find_adj_cell
+
+
+
+!----------------------------------------------------------------------
+!
+!     Given points inside and outside a cell, converge to the boundary
+!
+!----------------------------------------------------------------------
+
+
+      subroutine converge_to_bdry(cell_add, cell_grid_num,
+     &     ncorners, cell_corner_lat,
+     &     cell_corner_lon, cell_center_lat, cell_center_lon, 
+     &     inpt_lat, inpt_lon, outpt_lat, outpt_lon,
+     &     bpt_lat, bpt_lon, bedgeid)
+
+!----------------------------------------------------------------------
+!
+!     Input variables
+!
+!----------------------------------------------------------------------
+
+      integer (SCRIP_i4), intent(in) ::
+     &     cell_add,            ! Cell in which we are operating
+     &     cell_grid_num,       ! Grid to which cell belongs
+     &     ncorners             ! Number of corners in cell
+
+      real (SCRIP_r8), dimension(ncorners), intent(in) ::
+     &     cell_corner_lat,     ! Latitude values of cell corners
+     &     cell_corner_lon      ! Longitude values of cell corners
+
+      real (SCRIP_r8), intent(in) ::
+     &     cell_center_lat,     ! Latitude of cell center
+     &     cell_center_lon,     ! Longitude of cell center,
+     &     inpt_lat,            ! Latitude of inside point
+     &     inpt_lon,            ! Longitude of inside point
+     &     outpt_lat,           ! Latitude of outside point
+     &     outpt_lon            ! Longitude of outside point
+
+
+!----------------------------------------------------------------------
+!
+!     Output variables
+!
+!----------------------------------------------------------------------
+
+      real (SCRIP_r8), intent(out) ::
+     &     bpt_lat,             ! Latitude of boundary point
+     &     bpt_lon              ! Longitude of boundary point
+
+      integer (SCRIP_i4), intent(out) ::
+     &     bedgeid              ! ID of edge that point converged to
+
+!----------------------------------------------------------------------
+!
+!     Local variables
+!
+!----------------------------------------------------------------------
+
+      logical (SCRIP_logical) ::
+     &     converged, 
+     &     lboundary,
+     &     inpoly
+
+      integer (SCRIP_i4) ::
+     &     it
+
+      real (SCRIP_r8) ::
+     &     lat1, lon1,
+     &     lat2, lon2,
+     &     midlat, midlon
+
+      bedgeid = 0
+
+      lat1 = inpt_lat
+      lon1 = inpt_lon
+      lat2 = outpt_lat
+      lon2 = outpt_lon      
+
+
+      converged = .false.
+      it = 0
+      do while (.not. converged) 
+         
+         midlat = (lat1+lat2)/2.0
+         if (abs(lon1-lon2) < pi) then            
+            midlon = (lon1+lon2)/2.0
+         else
+            midlon = (lon1+lon2)/2.0 - pi2
+         endif
+                               
+                               
+         call ptincell(midlat, midlon, 
+     &        cell_add, ncorners, 
+     &        cell_corner_lat, cell_corner_lon,
+     &        cell_center_lat, cell_center_lon,
+     &        cell_grid_num,
+     &        inpoly, lboundary, bedgeid) 
+                               
+         if (inpoly) then
+            lat1 = midlat
+            lon1 = midlon
+         else
+            lat2 = midlat
+            lon2 = midlon
+         endif
+                               
+         if (abs(lat1-lat2) < tiny .and.
+     &        abs(lon1-lon2) < tiny .and. lboundary) then
+            converged = .true.
+         endif                 
+                               
+         if (it > 100) then
+            exit
+         endif
+                               
+         it = it + 1
+      enddo                     ! do while (not converged)
+
+
+      bpt_lat = midlat
+      bpt_lon = midlon
+
+      end subroutine converge_to_bdry
+
+
+
 
       end module remap_conservative
 
