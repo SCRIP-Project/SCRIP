@@ -31,10 +31,11 @@
 !
 !-----------------------------------------------------------------------
 
-      use kinds_mod
+      use SCRIP_KindsMod
       use constants
-      use iounits
+      use SCRIP_IOUnitsMod
       use netcdf_mod
+      use netcdf
 
       implicit none
 
@@ -49,23 +50,23 @@
 !
 !-----------------------------------------------------------------------
 
-      integer (kind=int_kind), parameter ::
+      integer (kind=SCRIP_i4), parameter ::
      &             nx = 320, ny = 384,
      &             grid_size = nx*ny,
      &             grid_rank = 2,
      &             grid_corners = 4
 
-      integer (kind=int_kind), dimension(2) ::
+      integer (kind=SCRIP_i4), dimension(2) ::
      &             grid_dims   ! size of each dimension
 
-      character(char_len), parameter :: 
+      character(SCRIP_CharLength), parameter :: 
      &    grid_name = 'Greenland DP x1p',
      &    grid_file_in  = '/scratch/pwjones/grid.320x384.da',
      &    grid_topo_in  = '/scratch/pwjones/kmt.320x384.da',
      &    grid_file_out = '/scratch/pwjones/Greenland_DP_x1p.nc'
 
-      real (kind=dbl_kind), parameter ::
-     &  radius    = 6370.0e5_dbl_kind       ! radius of Earth (cm)
+      real (kind=SCRIP_r8), parameter ::
+     &  radius    = 6370.0e5_SCRIP_r8       ! radius of Earth (cm)
      &, area_norm = one/(radius*radius)
 
 !-----------------------------------------------------------------------
@@ -74,19 +75,19 @@
 !
 !-----------------------------------------------------------------------
 
-      integer (kind=int_kind), dimension(grid_size) ::
+      integer (kind=SCRIP_i4), dimension(grid_size) ::
      &             grid_imask
 
-      real (kind=dbl_kind), dimension(grid_size) ::
+      real (kind=SCRIP_r8), dimension(grid_size) ::
      &             grid_area      ,  ! area as computed in POP
      &             grid_center_lat,  ! lat/lon coordinates for
      &             grid_center_lon   ! each grid center in radians
 
-      real (kind=dbl_kind), dimension(grid_corners,grid_size) ::
+      real (kind=SCRIP_r8), dimension(grid_corners,grid_size) ::
      &             grid_corner_lat,  ! lat/lon coordinates for
      &             grid_corner_lon   ! each grid corner in radians
 
-      real (kind=dbl_kind), dimension(nx,ny) ::
+      real (kind=SCRIP_r8), dimension(nx,ny) ::
      &             HTN, HTE          ! T-cell grid lengths
 
 !-----------------------------------------------------------------------
@@ -95,9 +96,9 @@
 !
 !-----------------------------------------------------------------------
 
-      integer (kind=int_kind) :: i, j, n, iunit, ocn_add, im1, jm1
+      integer (kind=SCRIP_i4) :: i, j, n, iunit, ocn_add, im1, jm1
 
-      integer (kind=int_kind) ::
+      integer (kind=SCRIP_i4) ::
      &        ncstat,            ! general netCDF status variable
      &        nc_grid_id,        ! netCDF grid dataset id
      &        nc_gridsize_id,    ! netCDF grid size dim id
@@ -111,10 +112,10 @@
      &        nc_grdcrnrlat_id,  ! netCDF grid corner lat id
      &        nc_grdcrnrlon_id   ! netCDF grid corner lon id
 
-      integer (kind=int_kind), dimension(2) ::
+      integer (kind=SCRIP_i4), dimension(2) ::
      &        nc_dims2_id        ! netCDF dim id array for 2-d arrays
 
-      real (kind=dbl_kind) :: tmplon, dxt, dyt
+      real (kind=SCRIP_r8) :: tmplon, dxt, dyt
 
 !-----------------------------------------------------------------------
 !
@@ -286,11 +287,11 @@
       !*** create netCDF dataset for this grid
       !***
 
-      ncstat = nf_create (grid_file_out, NF_CLOBBER,
+      ncstat = nf90_create (grid_file_out, NF90_CLOBBER,
      &                    nc_grid_id)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_put_att_text (nc_grid_id, NF_GLOBAL, 'title',
+      ncstat = nf90_put_att_text (nc_grid_id, NF90_GLOBAL, 'title',
      &                          len_trim(grid_name), grid_name)
       call netcdf_error_handler(ncstat)
 
@@ -298,7 +299,7 @@
       !*** define grid size dimension
       !***
 
-      ncstat = nf_def_dim (nc_grid_id, 'grid_size', grid_size, 
+      ncstat = nf90_def_dim (nc_grid_id, 'grid_size', grid_size, 
      &                     nc_gridsize_id)
       call netcdf_error_handler(ncstat)
 
@@ -306,7 +307,7 @@
       !*** define grid rank dimension
       !***
 
-      ncstat = nf_def_dim (nc_grid_id, 'grid_rank', grid_rank, 
+      ncstat = nf90_def_dim (nc_grid_id, 'grid_rank', grid_rank, 
      &                     nc_gridrank_id)
       call netcdf_error_handler(ncstat)
 
@@ -314,7 +315,7 @@
       !*** define grid corner dimension
       !***
 
-      ncstat = nf_def_dim (nc_grid_id, 'grid_corners', grid_corners, 
+      ncstat = nf90_def_dim (nc_grid_id, 'grid_corners', grid_corners, 
      &                     nc_gridcorn_id)
       call netcdf_error_handler(ncstat)
 
@@ -322,7 +323,7 @@
       !*** define grid dim size array
       !***
 
-      ncstat = nf_def_var (nc_grid_id, 'grid_dims', NF_INT,
+      ncstat = nf90_def_var (nc_grid_id, 'grid_dims', NF90_INT,
      &                     1, nc_gridrank_id, nc_griddims_id)
       call netcdf_error_handler(ncstat)
 
@@ -330,11 +331,11 @@
       !*** define grid center latitude array
       !***
 
-      ncstat = nf_def_var (nc_grid_id, 'grid_center_lat', NF_DOUBLE,
+      ncstat = nf90_def_var (nc_grid_id, 'grid_center_lat', NF90_DOUBLE,
      &                     1, nc_gridsize_id, nc_grdcntrlat_id)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_put_att_text (nc_grid_id, nc_grdcntrlat_id, 'units',
+      ncstat = nf90_put_att_text (nc_grid_id, nc_grdcntrlat_id, 'units',
      &                          7, 'radians')
       call netcdf_error_handler(ncstat)
 
@@ -342,11 +343,11 @@
       !*** define grid center longitude array
       !***
 
-      ncstat = nf_def_var (nc_grid_id, 'grid_center_lon', NF_DOUBLE,
+      ncstat = nf90_def_var (nc_grid_id, 'grid_center_lon', NF90_DOUBLE,
      &                     1, nc_gridsize_id, nc_grdcntrlon_id)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_put_att_text (nc_grid_id, nc_grdcntrlon_id, 'units',
+      ncstat = nf90_put_att_text (nc_grid_id, nc_grdcntrlon_id, 'units',
      &                          7, 'radians')
       call netcdf_error_handler(ncstat)
 
@@ -354,7 +355,7 @@
       !*** define grid area array
       !***
 
-      ncstat = nf_def_var (nc_grid_id, 'grid_area', NF_DOUBLE,
+      ncstat = nf90_def_var (nc_grid_id, 'grid_area', NF90_DOUBLE,
      &                     1, nc_gridsize_id, nc_gridarea_id)
       call netcdf_error_handler(ncstat)
 
@@ -362,11 +363,11 @@
       !*** define grid mask
       !***
 
-      ncstat = nf_def_var (nc_grid_id, 'grid_imask', NF_INT,
+      ncstat = nf90_def_var (nc_grid_id, 'grid_imask', NF90_INT,
      &                     1, nc_gridsize_id, nc_grdimask_id)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_put_att_text (nc_grid_id, nc_grdimask_id, 'units',
+      ncstat = nf90_put_att_text (nc_grid_id, nc_grdimask_id, 'units',
      &                          8, 'unitless')
       call netcdf_error_handler(ncstat)
 
@@ -377,11 +378,11 @@
       nc_dims2_id(1) = nc_gridcorn_id
       nc_dims2_id(2) = nc_gridsize_id
 
-      ncstat = nf_def_var (nc_grid_id, 'grid_corner_lat', NF_DOUBLE,
+      ncstat = nf90_def_var (nc_grid_id, 'grid_corner_lat', NF90_DOUBLE,
      &                     2, nc_dims2_id, nc_grdcrnrlat_id)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_put_att_text (nc_grid_id, nc_grdcrnrlat_id, 'units',
+      ncstat = nf90_put_att_text (nc_grid_id, nc_grdcrnrlat_id, 'units',
      &                          7, 'radians')
       call netcdf_error_handler(ncstat)
 
@@ -389,11 +390,11 @@
       !*** define grid corner longitude array
       !***
 
-      ncstat = nf_def_var (nc_grid_id, 'grid_corner_lon', NF_DOUBLE,
+      ncstat = nf90_def_var (nc_grid_id, 'grid_corner_lon', NF90_DOUBLE,
      &                     2, nc_dims2_id, nc_grdcrnrlon_id)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_put_att_text (nc_grid_id, nc_grdcrnrlon_id, 'units',
+      ncstat = nf90_put_att_text (nc_grid_id, nc_grdcrnrlon_id, 'units',
      &                          7, 'radians')
       call netcdf_error_handler(ncstat)
 
@@ -401,7 +402,7 @@
       !*** end definition stage
       !***
 
-      ncstat = nf_enddef(nc_grid_id)
+      ncstat = nf90_enddef(nc_grid_id)
       call netcdf_error_handler(ncstat)
 
 !-----------------------------------------------------------------------
@@ -410,35 +411,35 @@
 !
 !-----------------------------------------------------------------------
 
-      ncstat = nf_put_var_int(nc_grid_id, nc_griddims_id, grid_dims)
+      ncstat = nf90_put_var_int(nc_grid_id, nc_griddims_id, grid_dims)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_put_var_double(nc_grid_id, nc_grdcntrlat_id, 
+      ncstat = nf90_put_var_double(nc_grid_id, nc_grdcntrlat_id, 
      &                           grid_center_lat)
-      ncstat = nf_put_var_int(nc_grid_id, nc_grdimask_id, grid_imask)
+      ncstat = nf90_put_var_int(nc_grid_id, nc_grdimask_id, grid_imask)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_put_var_double(nc_grid_id, nc_gridarea_id, 
+      ncstat = nf90_put_var_double(nc_grid_id, nc_gridarea_id, 
      &                           grid_area)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_put_var_double(nc_grid_id, nc_grdcntrlat_id, 
+      ncstat = nf90_put_var_double(nc_grid_id, nc_grdcntrlat_id, 
      &                           grid_center_lat)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_put_var_double(nc_grid_id, nc_grdcntrlon_id, 
+      ncstat = nf90_put_var_double(nc_grid_id, nc_grdcntrlon_id, 
      &                           grid_center_lon)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_put_var_double(nc_grid_id, nc_grdcrnrlat_id, 
+      ncstat = nf90_put_var_double(nc_grid_id, nc_grdcrnrlat_id, 
      &                           grid_corner_lat)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_put_var_double(nc_grid_id, nc_grdcrnrlon_id, 
+      ncstat = nf90_put_var_double(nc_grid_id, nc_grdcrnrlon_id, 
      &                           grid_corner_lon)
       call netcdf_error_handler(ncstat)
 
-      ncstat = nf_close(nc_grid_id)
+      ncstat = nf90_close(nc_grid_id)
 
 !***********************************************************************
 
