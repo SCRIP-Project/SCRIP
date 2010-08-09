@@ -92,7 +92,12 @@
      &             grid1_area_in,     ! area of grid1 cell from file
      &             grid2_area_in,     ! area of grid2 cell from file
      &             grid1_frac,        ! fractional area of grid cells
-     &             grid2_frac         ! participating in remapping
+     &             grid2_frac,        ! participating in remapping
+     &             grid1_centroid_lat,! Centroid of grid1 cell
+     &             grid1_centroid_lon,!
+     &             grid2_centroid_lat,! Centroid of grid2 cell
+     &             grid2_centroid_lon !
+
 
       real (SCRIP_r8), dimension(:,:), allocatable, target, save ::
      &             grid1_corner_lat,  ! lat/lon coordinates for
@@ -108,6 +113,13 @@
       real (SCRIP_r8), dimension(:,:), allocatable, target, save ::
      &             grid1_bound_box,  ! lat/lon bounding box for use
      &             grid2_bound_box   ! in restricting grid searches
+
+      integer (SCRIP_i4), save ::    ! Cells overlapping the poles (may be 0)
+     &     grid1_npole_cell,        
+     &     grid1_spole_cell,         
+     &     grid2_npole_cell,
+     &     grid2_spole_cell
+      
 
 !-----------------------------------------------------------------------
 !
@@ -128,6 +140,24 @@
       real(SCRIP_r8), dimension(:,:), allocatable, save ::
      &        bin_lats   ! min,max latitude for each search bin
      &,       bin_lons   ! min,max longitude for each search bin
+
+!-----------------------------------------------------------------------
+!
+!     Parameters for dealing with intersections in the polar region
+!
+!-----------------------------------------------------------------------
+
+      real (SCRIP_r8), parameter :: 
+     &     north_thresh = 1.5_SCRIP_r8, ! threshold for coord transf.
+     &     south_thresh =-1.5_SCRIP_r8  ! threshold for coord transf.
+
+
+      !*** Number of subsegments used to represents edges near
+      !*** the polar regions - choose an odd number to avoid obvious
+      !*** degeneracies in intersection
+
+      integer (SCRIP_i4), parameter ::
+     &     npseg=11                    
 
 !***********************************************************************
 
@@ -171,10 +201,22 @@
       integer (SCRIP_i4) :: 
      &  n      ! loop counter
      &, nele   ! element loop counter
-     &, i,j    ! logical 2d addresses
+     &, i,j,k
      &, ip1,jp1
      &, n_add, e_add, ne_add
      &, nx, ny
+
+      integer (SCRIP_i4) ::
+     &     zero_crossing, pi_crossing,
+     &     grid1_add, grid2_add,
+     &     corner, next_corn
+     
+      real (SCRIP_r8) ::
+     &     beglon, endlon, endlat
+
+      logical (SCRIP_logical) ::
+     &     found
+
 
       integer (SCRIP_i4) :: 
      &         ncstat,           ! netCDF status variable
@@ -321,7 +363,11 @@
      &          grid2_corner_lat(grid2_corners, grid2_size),
      &          grid2_corner_lon(grid2_corners, grid2_size),
      &          grid1_bound_box (4            , grid1_size),
-     &          grid2_bound_box (4            , grid2_size))
+     &          grid2_bound_box (4            , grid2_size),
+     &          grid1_centroid_lat(grid1_size),
+     &          grid1_centroid_lon(grid1_size),
+     &          grid2_centroid_lat(grid2_size),
+     &          grid2_centroid_lon(grid2_size))
 
       allocate(imask(grid1_size))
 
@@ -391,6 +437,8 @@
 
       grid1_area = zero
       grid1_frac = zero
+      grid1_centroid_lat = zero
+      grid1_centroid_lon = zero
 
 !-----------------------------------------------------------------------
 !
@@ -528,6 +576,8 @@
 
       grid2_area = zero
       grid2_frac = zero
+      grid2_centroid_lat = zero
+      grid2_centroid_lon = zero
 
 !-----------------------------------------------------------------------
 !
@@ -632,6 +682,21 @@
       where (grid2_corner_lat >  pih) grid2_corner_lat =  pih
       where (grid2_center_lat < -pih) grid2_center_lat = -pih
       where (grid2_corner_lat < -pih) grid2_corner_lat = -pih
+
+
+!-----------------------------------------------------------------------
+!
+!     also, different grids consider the pole to be a slightly different
+!     values (1.570796326789 vs 1.5707963267977). Move such points that
+!     are practically at the pole to the pole to avoid problems
+!
+!-----------------------------------------------------------------------
+
+      where (abs(grid1_corner_lat-pih) < 1.e-05) grid1_corner_lat =  pih
+      where (abs(grid1_corner_lat+pih) < 1.e-05) grid1_corner_lat = -pih
+      where (abs(grid2_corner_lat-pih) < 1.e-05) grid2_corner_lat =  pih
+      where (abs(grid2_corner_lat+pih) < 1.e-05) grid2_corner_lat = -pih
+
 
 !-----------------------------------------------------------------------
 !
@@ -780,10 +845,6 @@
         grid2_bound_box(4,:) = pi2
       end where
 
-      !***
-      !*** try to check for cells that overlap poles
-      !***
-
       where (grid1_center_lat > grid1_bound_box(2,:))
      &  grid1_bound_box(2,:) = pih
 
@@ -795,6 +856,168 @@
 
       where (grid2_center_lat < grid2_bound_box(1,:))
      &  grid2_bound_box(1,:) = -pih
+
+
+      !***
+      !*** Check for cells that overlap poles and explicitly
+      !*** store their addresses
+      !***
+
+      grid1_npole_cell = 0
+      grid1_spole_cell = 0
+         
+      do grid1_add = 1, grid1_size
+
+         found = .false.
+         do corner = 1, grid1_corners
+            endlat = grid1_corner_lat(corner,grid1_add)
+            if (abs(abs(endlat)-pih) .lt. 1e-5) then
+               found = .true.   ! cell has polar pnt; so pole is 
+                                ! not in the interior of the cell
+               exit
+            endif
+         enddo
+
+         if (found) cycle
+
+
+         beglon = grid1_corner_lon(1,grid1_add)
+         zero_crossing = 0
+         pi_crossing = 0
+
+         do corner = 1, grid1_corners
+            next_corn = mod(corner,grid1_corners) + 1
+            endlon = grid1_corner_lon(next_corn,grid1_add)
+
+            if (abs(beglon-endlon) .gt. pi) then
+               zero_crossing = 1
+            else
+               if ((beglon .lt. pi .and. endlon .ge. pi) .or.
+     &              (endlon .lt. pi .and. beglon .ge. pi)) then
+                  pi_crossing = 1
+               endif
+            endif
+
+            beglon = endlon
+         enddo
+         
+         if (zero_crossing .eq. 1 .and. pi_crossing .eq. 1) then
+
+            !***
+            !*** We have a polar cell
+            !***
+
+            if (grid1_center_lat(grid1_add) .gt. 0) then
+               grid1_npole_cell = grid1_add
+            else if (grid1_center_lat(grid1_add) .lt. 0) then
+               grid1_spole_cell = grid1_add
+            endif
+
+            if (grid1_npole_cell .ne. 0 .and.
+     &           grid1_spole_cell .ne. 0) then
+               exit
+            endif
+
+         endif
+
+      enddo
+
+
+
+      grid2_npole_cell = 0
+      grid2_spole_cell = 0
+
+      do grid2_add = 1, grid2_size
+
+         found = .false.
+         do corner = 1, grid2_corners
+            endlat = grid2_corner_lat(corner,grid2_add)
+            if (abs(abs(endlat)-pih) .lt. 1e-5) then
+               found = .true.   ! cell has polar pnt; so pole is 
+                                ! not in the interior of the cell
+               exit
+            endif
+         enddo
+
+         if (found) cycle
+
+         beglon = grid2_corner_lon(1,grid2_add)
+         zero_crossing = 0
+         pi_crossing = 0
+
+         do corner = 1, grid2_corners
+            next_corn = mod(corner,grid2_corners) + 1
+            endlon = grid2_corner_lon(next_corn,grid2_add)
+            
+            if (abs(beglon-endlon) > pi) then
+               zero_crossing = 1
+            else
+               if ((beglon .lt. pi .and. endlon .ge. pi) .or.
+     &              (endlon .lt. pi .and. beglon .ge. pi)) then
+                  pi_crossing = 1
+               endif
+            endif
+
+            beglon = endlon
+         enddo
+         
+         if (zero_crossing .eq. 1 .and. pi_crossing .eq. 1) then
+
+            !***
+            !*** We have a polar cell
+            !***
+
+            if (grid2_center_lat(grid2_add) .gt. 0) then
+               grid2_npole_cell = grid2_add
+            else if (grid2_center_lat(grid2_add) .lt. 0) then
+               grid2_spole_cell = grid2_add
+            endif
+
+            if (grid2_npole_cell .ne. 0 .and.
+     &           grid2_spole_cell .ne. 0) then
+               exit
+            endif
+
+         endif
+
+      enddo
+
+
+      print *, ' '
+      print *, 'Grid 1 size', grid1_size
+      print *, 'Grid 2 size', grid2_size
+
+
+      print *, 'grid1_npole_cell',grid1_npole_cell
+      if (grid1_npole_cell .gt. 0) then
+         do i = 1, grid1_corners
+            print *, grid1_corner_lat(i,grid1_npole_cell),
+     &           grid1_corner_lon(i,grid1_npole_cell)
+         enddo
+      endif
+      print *, 'grid1_spole_cell',grid1_spole_cell
+      if (grid1_spole_cell .gt. 0) then
+         do i = 1, grid1_corners
+            print *, grid1_corner_lat(i,grid1_spole_cell), 
+     &           grid1_corner_lon(i,grid1_spole_cell)
+         enddo
+      endif
+      print *, 'grid2_npole_cell',grid2_npole_cell
+      if (grid2_npole_cell .gt. 0) then
+         do i = 1, grid2_corners
+            print *, grid2_corner_lat(i,grid2_npole_cell), 
+     &           grid2_corner_lon(i,grid2_npole_cell)
+         enddo
+      endif
+      print *, 'grid2_spole_cell',grid2_spole_cell
+      if (grid2_spole_cell .gt. 0) then
+         do i = 1, grid2_corners
+            print *, grid2_corner_lat(i,grid2_spole_cell), 
+     &           grid2_corner_lon(i,grid2_spole_cell)
+         enddo
+      endif
+      print *
+
 
 !-----------------------------------------------------------------------
 !
