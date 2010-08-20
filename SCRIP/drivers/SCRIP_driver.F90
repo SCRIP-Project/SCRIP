@@ -211,9 +211,37 @@
    call SCRIP_ConfigRead(iunit, 'remapInputs', 'num_srch_bins', &
                          num_srch_bins, 900, errorCode,         & 
                          outStringBefore= 'Using ',                 &
-                         outStringAfter = 'search bins')
+                         outStringAfter = ' search bins')
    if (SCRIP_ErrorCheck(errorCode, rtnName, &
        'error reading num_srch_bins')) call SCRIP_driverExit(errorCode)
+
+   call SCRIP_ConfigRead(iunit, 'remapInputs',                     &
+                         'num_polar_segs', npseg, 11, errorCode,   & 
+                         outStringBefore= 'Using ',            &
+                         outStringAfter= ' segments per polar edge')
+   if (SCRIP_ErrorCheck(errorCode, rtnName, &
+       'error reading num_polar_segs')) call SCRIP_driverExit(errorCode)
+
+   call SCRIP_ConfigRead(iunit, 'remapInputs',                     &
+                         'npole_threshold', north_thresh, &
+                         1.5_SCRIP_r8,     &
+			 errorCode, & 
+                         outStringBefore='North pole threshold is ',&
+                         outStringAfter= ' radians')
+   if (SCRIP_ErrorCheck(errorCode, rtnName, &
+       'error reading npole_threshold')) &
+           call SCRIP_driverExit(errorCode)
+
+   call SCRIP_ConfigRead(iunit, 'remapInputs',                     &
+                         'spole_threshold', south_thresh, &
+                         -2.0_SCRIP_r8,    &
+			 errorCode, & 
+                         outStringBefore='South pole threshold is ',&
+                         outStringAfter= ' radians')
+   if (SCRIP_ErrorCheck(errorCode, rtnName, &
+       'error reading spole_threshold')) &
+           call SCRIP_driverExit(errorCode)
+
 
    call SCRIP_ConfigClose(iunit, errorCode)
    if (SCRIP_ErrorCheck(errorCode, rtnName, &
