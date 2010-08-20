@@ -21,7 +21,7 @@
 \vspace{1in}
 
 \begin{center}
-Version 1.4
+Version 1.5
 \end{center}
 
 \vspace{1in}
@@ -142,12 +142,6 @@ remapping algorithms.
 \begin{tabular}{|l|l|c|l|} \hline
      Routine       &    Parameter     &  Default & Description  \\
                    &      Name        &   Value  &              \\ \hline
-remap\_conserv.f   &  north\_thresh   &   1.42   &  threshold latitude (in  \\
-                   &                  &          &  radians) above which a  \\
-                   &                  &          &  coordinate transformation \\
-                   &                  &          &  is used to perform       \\
-                   &                  &          &  intersection calculation \\ \hline
-remap\_conserv.f   &  south\_thresh   &  -2.00   &  same for south pole \\ \hline
 remap\_conserv.f   &  max\_subseg     &  10000   &  maximum number of sub-  \\
                    &                  &          &  segments allowed (to    \\
                    &                  &          &  prevent infinite loop)  \\
@@ -194,21 +188,24 @@ and contain a namelist as shown in Fig.~\ref{fig:nml}.
 \begin{figure}
 \caption{Required input namelist. \label{fig:nml}}
 \begin{verbatim}
-&remap_inputs
+&remapInputs
     num_maps = 2
-    grid1_file = 'grid_1_file_name'
-    grid2_file = 'grid_2_file_name'
-    interp_file1 = 'map_1_output_file_name'
-    interp_file2 = 'map_2_output_file_name'
-    map1_name = 'name_for_mapping_1'
-    map2_name = 'name_for_mapping_2'
-    map_method = 'conservative'
-    normalize_opt = 'frac'
-    output_opt = 'scrip'
+    gridFile1 = 'grid_1_file_name'
+    gridFile2 = 'grid_2_file_name'
+    interpFile1 = 'map_1_output_file_name'
+    interpFile2 = 'map_2_output_file_name'
+    mapName1 = 'name_for_mapping_1'
+    mapName2 = 'name_for_mapping_2'
+    mapMethod = 'conservative'
+    normalizeOpt = 'fracArea'
+    outputOpt = 'scrip'
     restrict_type = 'latitude'
     num_srch_bins = 90
     luse_grid1_area = .false.
     luse_grid2_area = .false.
+    num_polar_segs = 11
+    npole_threshold =  1.5
+    spole_threshold = -1.5
 /
 \end{verbatim}
 \end{figure}
@@ -220,11 +217,11 @@ num\_maps should be set to one.  If you'd also like weights
 for a remapping in the opposite direction (grid 2 to grid 1),
 then num\_maps should be set to two.
 
-The map\_method variable determines the method to be used
-for the mapping.  A conservative remapping is map\_method
-`conservative'; a bilinear mapping is map\_method `bilinear';
-a distance-weighted average is map\_method `distwgt'; a
-bicubic mapping is map\_method `bicubic'.
+The mapMethod variable determines the method to be used
+for the mapping.  A conservative remapping is mapMethod
+`conservative'; a bilinear mapping is mapMethod `bilinear';
+a distance-weighted average is mapMethod `distwgt'; a
+bicubic mapping is mapMethod `bicubic'.
 
 The restrict\_type variable and num\_srch\_bins determines
 how the software restricts the range of grid points to search
@@ -244,11 +241,11 @@ restricting the search than the search itself.  For coarse
 grids, choosing the latitude option with 90 bins (one degree
 bins) is sufficient.
 
-The normalize\_opt variable is used to choose the normalization
+The normalizeOpt variable is used to choose the normalization
 of the remappings for the conservative remapping method.
-By default, normalize\_opt is set to be `fracarea' and will
+By default, normalizeOpt is set to be `fracArea' and will
 include the destination area fraction in the output weights;
-other options are `none' and `destarea' (see chapter on the
+other options are `none' and `dstArea' (see chapter on the
 conservative remapping method). The latter two are useful when
 dealing with masks that are dynamic (e.g. variable ice fraction).
 Keep in mind that in such a case, the
@@ -256,8 +253,8 @@ area fractions must be computed explicitly by the remapping
 routine at the time the remappings are actually computed
 (see the example in Fig.~\ref{fig:rmpfort}).
 
-The grid{\em x}\_file are names (with relative paths) of
-the grid input files.  The first grid file (grid1\_file)
+The gridFile{\em x} are names (with relative paths) of
+the grid input files.  The first grid file (gridFile1)
 {\em must} be the source grid if num\_maps=1.  If this
 mapping uses the conservative remapping method, the first
 grid file must also be the grid with the master mask
@@ -265,16 +262,16 @@ grid file must also be the grid with the master mask
 will be determined by this mask.
 
 Names of the output files for the remapping weights are
-determined by the interp\_file{\em x} filenames (again
+determined by the interpFile{\em x} filenames (again
 with paths).  Map 1 refers to a mapping from grid 1 to
 grid 2; map 2 is in the opposite direction.
 
 A descriptive name for the remappings are determined by
-the map{\em x}\_name variables.  These should be
+the mapName{\em x} variables.  These should be
 descriptive enough to know exactly which grids and
 methods were used.
 
-The output\_opt variable determines the format of the
+The outputOpt variable determines the format of the
 netCDF output file.  The two currently-supported options
 are `scrip' and `ncar-csm'.  The latter is to generate
 files for use in the NCAR CSM Flux Coupler for coupled
@@ -288,6 +285,27 @@ files must contain the grid areas.  This option is
 provided primarily for making the weights consistent
 with internal model-computed areas (which may differ
 somewhat from the SCRIP-computed areas).
+
+The variables npole\_threshold and spole\_threshold are 
+used to control when the remapping algorithm switches from 
+grid intersections in latitude-longitude space to a 
+transformed space which flattens out the grid near the poles.
+If SCRIP generates negative weights, a user can try to vary 
+the threshold values.
+
+
+The variable num\_polar\_segs determines how many 
+subsegments to use while mapping a straight line 
+segment from latitude-longitude space to a transformed 
+space near the pole (see the north and south pole
+threshold explanations above). Using too small a 
+number (e.g. 1) can result in large errors in area 
+computations, negative remapping weights or even 
+failure of the code. Using too large a number
+increases the computational cost of the algorithm. 
+It has generally been found that num\_polar\_segs~=~11 
+is a good variable setting and is the default.
+
 
 \subsection{Grid Input Files}
 
