@@ -147,17 +147,17 @@
 !
 !-----------------------------------------------------------------------
 
-      real (SCRIP_r8), parameter :: 
-     &     north_thresh = 1.5_SCRIP_r8, ! threshold for coord transf.
-     &     south_thresh =-1.5_SCRIP_r8  ! threshold for coord transf.
+      real (SCRIP_r8), save :: 
+     &     north_thresh,  ! threshold for coord transf.
+     &     south_thresh   ! threshold for coord transf.
 
 
       !*** Number of subsegments used to represents edges near
       !*** the polar regions - choose an odd number to avoid obvious
       !*** degeneracies in intersection
 
-      integer (SCRIP_i4), parameter ::
-     &     npseg=11                    
+      integer (SCRIP_i4), save ::
+     &     npseg                    
 
 !***********************************************************************
 
