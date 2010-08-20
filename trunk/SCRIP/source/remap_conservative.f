@@ -622,10 +622,10 @@
       print *, 'Finished Conservative Remapping'
 
 
-      call timer_print(1)
-      call timer_print(2)
-      call timer_print(3)
-      call timer_print(4)
+c      call timer_print(1)
+c      call timer_print(2)
+c      call timer_print(3)
+c      call timer_print(4)
 
       end subroutine remap_conserv
 
