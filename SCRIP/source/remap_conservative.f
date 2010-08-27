@@ -3529,8 +3529,10 @@ c      call timer_print(4)
             num_srch_cells = 0
          else
             if (num_srch_cells .gt. 0) then
-               deallocate(srch_add,srch_corner_lat,srch_corner_lon,
-     &              srch_center_lat, srch_center_lon)
+               if (allocated(srch_add)) then
+                  deallocate(srch_add,srch_corner_lat,srch_corner_lon,
+     &                 srch_center_lat, srch_center_lon)
+               endif
             endif
          endif
 
@@ -3847,7 +3849,9 @@ c      call timer_print(4)
             num_srch_cells = 0
          else
             if (num_srch_cells .gt. 0) then
-               deallocate(srch_add,srch_corner_lat,srch_corner_lon)
+               if (allocated(srch_add)) then
+                  deallocate(srch_add,srch_corner_lat,srch_corner_lon)
+               endif
             endif
          endif
 
@@ -4930,9 +4934,11 @@ c      call timer_print(4)
             last_srch_grid_num = 0
          else
             if (num_srch_cells_loc .gt. 0) then
-               deallocate(srch_add_loc,
-     &              srch_corner_lat_loc,srch_corner_lon_loc,
-     &              srch_center_lat_loc,srch_center_lon_loc)
+               if (allocated(srch_add_loc)) then
+                  deallocate(srch_add_loc,
+     &                 srch_corner_lat_loc,srch_corner_lon_loc,
+     &                 srch_center_lat_loc,srch_center_lon_loc)
+               endif
             endif
          endif
 
@@ -5223,9 +5229,11 @@ c      call timer_print(4)
       num_srch_cells = num_srch_cells_loc
 
       if (num_srch_cells .eq. 0) then
-         deallocate(srch_add_loc,srch_corner_lat_loc,
-     &        srch_corner_lon_loc,srch_center_lat_loc,
-     &        srch_center_lon_loc)
+         if (allocated(srch_add_loc)) then
+            deallocate(srch_add_loc,srch_corner_lat_loc,
+     &           srch_corner_lon_loc,srch_center_lat_loc,
+     &           srch_center_lon_loc)
+         endif
          return
       endif
 
@@ -5443,8 +5451,10 @@ c      call timer_print(4)
             last_cell_grid_num = 0
          else
             if (num_srch_cells .gt. 0) then
-               deallocate(srch_add, srch_corner_lat, srch_corner_lon,
-     &         srch_center_lat, srch_center_lon)
+               if (allocated(srch_add)) then
+                  deallocate(srch_add, srch_corner_lat, srch_corner_lon,
+     &                 srch_center_lat, srch_center_lon)
+               endif
             endif
          endif
 
