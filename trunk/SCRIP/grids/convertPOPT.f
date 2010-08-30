@@ -34,7 +34,7 @@
       use SCRIP_KindsMod
       use constants
       use SCRIP_IOUnitsMod
-      use netcdf_mod
+      use SCRIP_NetcdfMod
       use netcdf
 
       implicit none
@@ -117,6 +117,9 @@
 
       real (kind=SCRIP_r8) :: tmplon, dxt, dyt
 
+      integer (kind=SCRIP_i4) :: errorCode
+      character (12), parameter :: rtnName = 'convertPOPT'
+
 !-----------------------------------------------------------------------
 !
 !     read in grid info
@@ -125,20 +128,19 @@
 !
 !-----------------------------------------------------------------------
 
-      call get_unit(iunit)
+      iunit=11
       open(unit=iunit, file=grid_topo_in, status='old', 
      &     form='unformatted', access='direct', recl=grid_size*4)
       read (unit=iunit,rec=1) grid_imask
-      call release_unit(iunit)
 
-      call get_unit(iunit)
+
+      iunit=12
       open(unit=iunit, file=grid_file_in, status='old', 
      &     form='unformatted', access='direct', recl=grid_size*8)
       read (unit=iunit, rec=1) grid_corner_lat(3,:)
       read (unit=iunit, rec=2) grid_corner_lon(3,:)
       read (unit=iunit, rec=3) HTN
       read (unit=iunit, rec=4) HTE
-      call release_unit(iunit)
 
       grid_dims(1) = nx
       grid_dims(2) = ny
@@ -289,11 +291,13 @@
 
       ncstat = nf90_create (grid_file_out, NF90_CLOBBER,
      &                    nc_grid_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &     'error ')) call convertPOPTexit(errorCode)
 
-      ncstat = nf90_put_att_text (nc_grid_id, NF90_GLOBAL, 'title',
-     &                          len_trim(grid_name), grid_name)
-      call netcdf_error_handler(ncstat)
+      ncstat = nf90_put_att (nc_grid_id, NF90_GLOBAL, 'title',
+     &                       grid_name)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &     'error ')) call convertPOPTexit(errorCode)
 
       !***
       !*** define grid size dimension
@@ -301,7 +305,8 @@
 
       ncstat = nf90_def_dim (nc_grid_id, 'grid_size', grid_size, 
      &                     nc_gridsize_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &     'error ')) call convertPOPTexit(errorCode)
 
       !***
       !*** define grid rank dimension
@@ -309,7 +314,8 @@
 
       ncstat = nf90_def_dim (nc_grid_id, 'grid_rank', grid_rank, 
      &                     nc_gridrank_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &     'error ')) call convertPOPTexit(errorCode)
 
       !***
       !*** define grid corner dimension
@@ -317,59 +323,68 @@
 
       ncstat = nf90_def_dim (nc_grid_id, 'grid_corners', grid_corners, 
      &                     nc_gridcorn_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &     'error ')) call convertPOPTexit(errorCode)
 
       !***
       !*** define grid dim size array
       !***
 
       ncstat = nf90_def_var (nc_grid_id, 'grid_dims', NF90_INT,
-     &                     1, nc_gridrank_id, nc_griddims_id)
-      call netcdf_error_handler(ncstat)
+     &                       nc_gridrank_id, nc_griddims_id)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &     'error ')) call convertPOPTexit(errorCode)
 
       !***
       !*** define grid center latitude array
       !***
 
       ncstat = nf90_def_var (nc_grid_id, 'grid_center_lat', NF90_DOUBLE,
-     &                     1, nc_gridsize_id, nc_grdcntrlat_id)
-      call netcdf_error_handler(ncstat)
+     &                       nc_gridsize_id, nc_grdcntrlat_id)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &     'error ')) call convertPOPTexit(errorCode)
 
-      ncstat = nf90_put_att_text (nc_grid_id, nc_grdcntrlat_id, 'units',
-     &                          7, 'radians')
-      call netcdf_error_handler(ncstat)
+      ncstat = nf90_put_att (nc_grid_id, nc_grdcntrlat_id, 'units',
+     &                       'radians')
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &     'error ')) call convertPOPTexit(errorCode)
 
       !***
       !*** define grid center longitude array
       !***
 
       ncstat = nf90_def_var (nc_grid_id, 'grid_center_lon', NF90_DOUBLE,
-     &                     1, nc_gridsize_id, nc_grdcntrlon_id)
-      call netcdf_error_handler(ncstat)
+     &                       nc_gridsize_id, nc_grdcntrlon_id)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &     'error ')) call convertPOPTexit(errorCode)
 
-      ncstat = nf90_put_att_text (nc_grid_id, nc_grdcntrlon_id, 'units',
-     &                          7, 'radians')
-      call netcdf_error_handler(ncstat)
+      ncstat = nf90_put_att (nc_grid_id, nc_grdcntrlon_id, 'units',
+     &                       'radians')
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &     'error ')) call convertPOPTexit(errorCode)
 
       !***
       !*** define grid area array
       !***
 
       ncstat = nf90_def_var (nc_grid_id, 'grid_area', NF90_DOUBLE,
-     &                     1, nc_gridsize_id, nc_gridarea_id)
-      call netcdf_error_handler(ncstat)
+     &                       nc_gridsize_id, nc_gridarea_id)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &     'error ')) call convertPOPTexit(errorCode)
 
       !***
       !*** define grid mask
       !***
 
       ncstat = nf90_def_var (nc_grid_id, 'grid_imask', NF90_INT,
-     &                     1, nc_gridsize_id, nc_grdimask_id)
-      call netcdf_error_handler(ncstat)
+     &                       nc_gridsize_id, nc_grdimask_id)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &     'error ')) call convertPOPTexit(errorCode)
 
-      ncstat = nf90_put_att_text (nc_grid_id, nc_grdimask_id, 'units',
-     &                          8, 'unitless')
-      call netcdf_error_handler(ncstat)
+      ncstat = nf90_put_att (nc_grid_id, nc_grdimask_id, 'units',
+     &                       'unitless')
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &     'error ')) call convertPOPTexit(errorCode)
 
       !***
       !*** define grid corner latitude array
@@ -379,31 +394,36 @@
       nc_dims2_id(2) = nc_gridsize_id
 
       ncstat = nf90_def_var (nc_grid_id, 'grid_corner_lat', NF90_DOUBLE,
-     &                     2, nc_dims2_id, nc_grdcrnrlat_id)
-      call netcdf_error_handler(ncstat)
+     &                       nc_dims2_id, nc_grdcrnrlat_id)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &     'error ')) call convertPOPTexit(errorCode)
 
-      ncstat = nf90_put_att_text (nc_grid_id, nc_grdcrnrlat_id, 'units',
-     &                          7, 'radians')
-      call netcdf_error_handler(ncstat)
+      ncstat = nf90_put_att (nc_grid_id, nc_grdcrnrlat_id, 'units',
+     &                            'radians')
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &     'error ')) call convertPOPTexit(errorCode)
 
       !***
       !*** define grid corner longitude array
       !***
 
       ncstat = nf90_def_var (nc_grid_id, 'grid_corner_lon', NF90_DOUBLE,
-     &                     2, nc_dims2_id, nc_grdcrnrlon_id)
-      call netcdf_error_handler(ncstat)
+     &                       nc_dims2_id, nc_grdcrnrlon_id)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &     'error ')) call convertPOPTexit(errorCode)
 
-      ncstat = nf90_put_att_text (nc_grid_id, nc_grdcrnrlon_id, 'units',
-     &                          7, 'radians')
-      call netcdf_error_handler(ncstat)
+      ncstat = nf90_put_att (nc_grid_id, nc_grdcrnrlon_id, 'units',
+     &                            'radians')
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &     'error ')) call convertPOPTexit(errorCode)
 
       !***
       !*** end definition stage
       !***
 
       ncstat = nf90_enddef(nc_grid_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &     'error ')) call convertPOPTexit(errorCode)
 
 !-----------------------------------------------------------------------
 !
@@ -411,38 +431,86 @@
 !
 !-----------------------------------------------------------------------
 
-      ncstat = nf90_put_var_int(nc_grid_id, nc_griddims_id, grid_dims)
-      call netcdf_error_handler(ncstat)
+      ncstat = nf90_put_var(nc_grid_id, nc_griddims_id, grid_dims)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &     'error ')) call convertPOPTexit(errorCode)
 
-      ncstat = nf90_put_var_double(nc_grid_id, nc_grdcntrlat_id, 
+      ncstat = nf90_put_var(nc_grid_id, nc_grdcntrlat_id, 
      &                           grid_center_lat)
-      ncstat = nf90_put_var_int(nc_grid_id, nc_grdimask_id, grid_imask)
-      call netcdf_error_handler(ncstat)
+      ncstat = nf90_put_var(nc_grid_id, nc_grdimask_id, grid_imask)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &     'error ')) call convertPOPTexit(errorCode)
 
-      ncstat = nf90_put_var_double(nc_grid_id, nc_gridarea_id, 
+      ncstat = nf90_put_var(nc_grid_id, nc_gridarea_id, 
      &                           grid_area)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &     'error ')) call convertPOPTexit(errorCode)
 
-      ncstat = nf90_put_var_double(nc_grid_id, nc_grdcntrlat_id, 
+      ncstat = nf90_put_var(nc_grid_id, nc_grdcntrlat_id, 
      &                           grid_center_lat)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &     'error ')) call convertPOPTexit(errorCode)
 
-      ncstat = nf90_put_var_double(nc_grid_id, nc_grdcntrlon_id, 
+      ncstat = nf90_put_var(nc_grid_id, nc_grdcntrlon_id, 
      &                           grid_center_lon)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &     'error ')) call convertPOPTexit(errorCode)
 
-      ncstat = nf90_put_var_double(nc_grid_id, nc_grdcrnrlat_id, 
+      ncstat = nf90_put_var(nc_grid_id, nc_grdcrnrlat_id, 
      &                           grid_corner_lat)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &     'error ')) call convertPOPTexit(errorCode)
 
-      ncstat = nf90_put_var_double(nc_grid_id, nc_grdcrnrlon_id, 
+      ncstat = nf90_put_var(nc_grid_id, nc_grdcrnrlon_id, 
      &                           grid_corner_lon)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &     'error ')) call convertPOPTexit(errorCode)
 
       ncstat = nf90_close(nc_grid_id)
 
 !***********************************************************************
 
       end program convertPOPT
+
+
+
+!***********************************************************************
+! !IROUTINE: convertPOPTexit
+! !INTERFACE:
+
+      subroutine convertPOPTexit(errorCode)
+
+! !DESCRIPTION:
+!  This program exits the convertgauss program. It first calls the 
+!  SCRIP error print function to print any errors encountered and then
+!  stops the execution.
+!
+! !REVISION HISTORY:
+!  SVN:$Id: $
+
+! !USES:
+
+      use SCRIP_KindsMod
+      use SCRIP_ErrorMod
+
+! !INPUT PARAMETERS:
+
+      integer (SCRIP_i4), intent(in) ::
+     &     errorCode            ! error flag to detect any errors encountered
+
+!-----------------------------------------------------------------------
+!
+!  call SCRIP error print function to output any logged errors that
+!  were encountered during execution.  Then stop.
+!
+!-----------------------------------------------------------------------
+
+      call SCRIP_ErrorPrint(errorCode)
+      
+      stop
+      
+!-----------------------------------------------------------------------
+      
+      end subroutine convertPOPTexit
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
