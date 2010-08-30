@@ -4,8 +4,8 @@
 #
 
 COMP = gfortran
-NETCDFINC = -p/sw/include 
-NETCDFLIB = -L/sw/lib
+NETCDFINC = -I/usr/local/include 
+NETCDFLIB = -L/usr/local/lib
 #NETCDFINC = -I$(HOME)/packages/netcdf-3.6.3-x86_64_linux/include
 #NETCDFLIB = -L$(HOME)/packages/netcdf-3.6.3-x86_64_linux/lib
 FLAGS = -O3 $(NETCDFINC)
@@ -22,13 +22,19 @@ OBJ  = \
 	constants.o \
         grids.o
 
-all: CreateLatLon OverlayGMV
+all: CreateLatLon OverlayGMV convertgauss convertPOPT
 
 CreateLatLon: $(OBJ) CreateLatLon.o
 	$(COMP) $(FLAGS) $(OBJ) CreateLatLon.o $(LIB) -o $(EXEDIR)/CreateLatLon
 
 OverlayGMV: $(OBJ) OverlayGMV.o
 	$(COMP) $(FLAGS) $(OBJ) OverlayGMV.o $(LIB) -o $(EXEDIR)/OverlayGMV
+
+convertgauss: $(OBJ) convertgauss.o
+	$(COMP) $(FLAGS) $(OBJ) convertgauss.o $(LIB) -o $(EXEDIR)/convertgauss
+
+convertPOPT: $(OBJ) convertPOPT.o
+	$(COMP) $(FLAGS) $(OBJ) convertPOPT.o $(LIB) -o $(EXEDIR)/convertPOPT
 
 SCRIP_KindsMod.o: $(SRCDIR)/SCRIP_KindsMod.F90 $(INCL)
 	$(COMP) $(FLAGS) -c $(SRCDIR)/SCRIP_KindsMod.F90
@@ -54,6 +60,12 @@ CreateLatLon.o: CreateLatLon.F90 SCRIP_KindsMod.o SCRIP_ErrorMod.o SCRIP_NetcdfM
 OverlayGMV.o: OverlayGMV.F90 SCRIP_KindsMod.o SCRIP_ErrorMod.o SCRIP_NetcdfMod.o grids.o constants.o $(INCL)
 	$(COMP) $(FLAGS) -c OverlayGMV.F90
 
+convertgauss.o: convertgauss.f SCRIP_KindsMod.o SCRIP_ErrorMod.o SCRIP_NetcdfMod.o grids.o constants.o $(INCL)
+	$(COMP) $(FLAGS) -c convertgauss.f
+
+convertPOPT.o: convertPOPT.f SCRIP_KindsMod.o SCRIP_ErrorMod.o SCRIP_NetcdfMod.o grids.o constants.o $(INCL)
+	$(COMP) $(FLAGS) -c convertPOPT.f
+
 clean: 
-	/bin/rm *.o *.mod
+	/bin/rm CreateLatLon OverlayGMV convertgauss convertPOPT *.o *.mod
 
