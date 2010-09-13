@@ -36,6 +36,17 @@
 !
 !***********************************************************************
 
+!
+!     
+!     BE CAREFUL ABOUT EXPLICIT INITIALIZATION OF VARIABLES IN
+!     MULTI-THREADED VERSION OF THE CODE - INLINE INITIALIZATION OF
+!     A VARIABLE IN FORTRAN 90/95 MAKES THE VARIABLE IMPLICITLY STATIC.
+!     OPENMP FORCES _ALL_ FORTRAN IMPLEMENTATIONS TO MAKE THE VARIABLE
+!     STATIC (OR OF THE TYPE SAVE) IF IT IS INITIALIZED IN THE 
+!     DECLARATION LINE
+!
+!
+
       module remap_conservative
 
 !-----------------------------------------------------------------------
@@ -45,9 +56,11 @@
       use timers       ! module for timing
       use grids        ! module containing grid information
       use remap_vars   ! module containing remap information
+      use omp_lib
 
       implicit none
 
+      integer (SCRIP_i4) :: nthreads=2  ! Number of parallel threads
      
 !***********************************************************************
 
@@ -94,16 +107,17 @@
       real (SCRIP_r8) ::
      &     beglat, beglon,
      &     endlat, endlon,
-     &     area,                ! Area of cell
-     &     reldiff,             ! Relative difference in computed and true area
      &     ave_reldiff,         ! Average rel. diff. in areas
      &     max_reldiff,         ! Maximum rel. diff in areas
      &     maxrd_area,          ! Computed area for cell with max. rel. diff.
      &     maxrd_true           ! True area for cell with max. rel. diff.
 
-      integer (SCRIP_i4) ::
-     &     nthreads = 1
+      real (SCRIP_r8), dimension(:), allocatable ::
+     &     reldiff,             ! Relative difference in computed and true area
+     &     ref_area             ! Area of cell as computed by direct 
+                                ! integration around its boundaries
 
+      call OMP_SET_DYNAMIC(.FALSE.)
 
 !-----------------------------------------------------------------------
 !
@@ -124,6 +138,10 @@
 
       call timer_start(1)
 
+C$OMP PARALLEL DEFAULT(SHARED) PRIVATE(grid1_add) NUM_THREADS(nthreads)
+
+C$OMP DO SCHEDULE(DYNAMIC) 
+
       do grid1_add = 1,grid1_size
 
          if (mod(grid1_add,progint) .eq. 0) then
@@ -134,7 +152,10 @@
 
       end do                    ! do grid1_add=...
 
-      call timer_stop(1)
+C$OMP END DO
+
+C$OMP END PARALLEL
+
 
 !-----------------------------------------------------------------------
 !
@@ -155,6 +176,10 @@
 
       call timer_start(2)
 
+C$OMP PARALLEL DEFAULT(SHARED) PRIVATE(grid2_add) NUM_THREADS(nthreads)
+
+C$OMP DO SCHEDULE(DYNAMIC)
+
       do grid2_add = 1,grid2_size
 
          if (mod(grid2_add,progint) .eq. 0) then
@@ -164,6 +189,10 @@
          call cell_integrate(grid2_add, grid_num, phi_or_theta)
 
       end do                    ! do grid2_add=...
+
+C$OMP END DO
+
+C$OMP END PARALLEL
 
       call timer_stop(2)
 
@@ -297,16 +326,19 @@
 
       call timer_start(3)
 
+C$OMP WORKSHARE
       where (grid1_area /= zero)
         grid1_centroid_lat = grid1_centroid_lat/grid1_area
         grid1_centroid_lon = grid1_centroid_lon/grid1_area
       end where
+C$OMP END WORKSHARE
 
+C$OMP WORKSHARE
       where (grid2_area /= zero)
         grid2_centroid_lat = grid2_centroid_lat/grid2_area
         grid2_centroid_lon = grid2_centroid_lon/grid2_area
       end where
-
+C$OMP END WORKSHARE
 
 !-----------------------------------------------------------------------
 !
@@ -314,6 +346,11 @@
 !     area if requested
 !
 !-----------------------------------------------------------------------
+
+C$OMP PARALLEL DEFAULT(SHARED) NUM_THREADS(nthreads)
+C$OMP& PRIVATE(n,grid1_add,grid2_add,nwgt,weights,norm_factor)
+
+C$OMP DO SCHEDULE(DYNAMIC)
 
       do n=1,num_links_map1
         grid1_add = grid1_add_map1(n)
@@ -399,10 +436,18 @@
 
       end do
 
+C$OMP END DO
+
+C$OMP END PARALLEL
+
       print *, 'Total number of links = ',num_links_map1
 
+C$OMP WORKSHARE
       where (grid1_area /= zero) grid1_frac = grid1_frac/grid1_area
+C$OMP END WORKSHARE
+C$OMP WORKSHARE
       where (grid2_area /= zero) grid2_frac = grid2_frac/grid2_area
+C$OMP END WORKSHARE
 
       call timer_stop(3)
 
@@ -412,10 +457,13 @@
 !
 !-----------------------------------------------------------------------
 
-      call timer_stop(4)
+      allocate(ref_area(grid1_size))
+      allocate(reldiff(grid1_size))
 
-      ave_reldiff = 0.0
-      max_reldiff = -1.0
+C$OMP PARALLEL DEFAULT(SHARED) NUM_THREADS(nthreads)
+C$OMP&  PRIVATE(n, i, inext, beglat, beglon, endlat, endlon, weights)
+C$OMP DO SCHEDULE(DYNAMIC)
+
       do n=1,grid1_size
         if (grid1_area(n) < -.01) then
           print *,'Grid 1 area error: ',n,grid1_area(n)
@@ -425,7 +473,7 @@
           print *,'Grid 1 centroid lat error: ',n,grid1_centroid_lat(n)
         endif
 
-        area = 0.0
+        ref_area(n) = 0.0
         do i = 1, grid1_corners
            inext = 1 + mod(i,grid1_corners)
 
@@ -436,23 +484,33 @@
 
            if (beglon .eq. endlon) cycle
 
-           call line_integral_phi(weights, num_wts, beglon, endlon,
-     &          beglat, endlat, grid1_center_lat(n), 
+           call line_integral(phi_or_theta, weights, num_wts, beglon, 
+     &          endlon, beglat, endlat, grid1_center_lat(n), 
      &          grid1_center_lon(n), grid1_center_lat(n),
      &          grid1_center_lon(n))
 
-           area = area + weights(1)
+           ref_area(n) = ref_area(n) + weights(1)
         enddo
 
-        reldiff = abs(area-grid1_area(n))/area
-        ave_reldiff = ave_reldiff + reldiff
-        if (reldiff > max_reldiff) then
-           max_reldiff = reldiff
+        reldiff(n) = abs(ref_area(n)-grid1_area(n))/ref_area(n)
+      enddo
+C$OMP END DO
+C$OMP END PARALLEL
+
+
+      ave_reldiff = 0.0
+      max_reldiff = -1.0
+
+      do n = 1, grid1_size
+        ave_reldiff = ave_reldiff + reldiff(n)
+        if (reldiff(n) > max_reldiff) then
+           max_reldiff = reldiff(n)
            maxrd_cell = n
            maxrd_area = grid1_area(n)
-           maxrd_true = area
+           maxrd_true = ref_area(n)
         endif
       end do
+
       ave_reldiff = ave_reldiff/grid1_size
 
       print *
@@ -468,9 +526,17 @@
       print *, 'True Area: ',maxrd_true 
       print *
 
+      deallocate(ref_area, reldiff)
 
-      ave_reldiff = 0.0
-      max_reldiff = -1.0
+
+
+      allocate(ref_area(grid2_size))
+      allocate(reldiff(grid2_size))
+
+C$OMP PARALLEL DEFAULT(SHARED) NUM_THREADS(nthreads) 
+C$OMP&   PRIVATE(n, i, inext, beglat, beglon, endlat, endlon, weights)
+C$OMP DO SCHEDULE(DYNAMIC)
+
       do n=1,grid2_size
         if (grid2_area(n) < -.01) then
           print *,'Grid 2 area error: ',n,grid2_area(n)
@@ -480,7 +546,7 @@
           print *,'Grid 2 centroid lat error: ',n,grid2_centroid_lat(n)
         endif
 
-        area = 0.0
+        ref_area(n) = 0.0
         do i = 1, grid2_corners
            inext = 1 + mod(i,grid2_corners)
 
@@ -491,23 +557,33 @@
 
            if (beglon .eq. endlon) cycle
 
-           call line_integral_phi(weights, num_wts, beglon, endlon,
-     &          beglat, endlat, grid2_center_lat(n), 
+           call line_integral(phi_or_theta, weights, num_wts, beglon, 
+     &          endlon, beglat, endlat, grid2_center_lat(n), 
      &          grid2_center_lon(n), grid2_center_lat(n),
      &          grid2_center_lon(n))
 
-           area = area + weights(1)
+           ref_area(n) = ref_area(n) + weights(1)
         enddo
 
-        reldiff = abs(area-grid2_area(n))/area
-        ave_reldiff = ave_reldiff + reldiff
-        if (reldiff > max_reldiff) then
-           max_reldiff = reldiff
+        reldiff(n) = abs(ref_area(n)-grid2_area(n))/ref_area(n)
+      enddo
+C$OMP END DO
+C$OMP END PARALLEL
+
+
+      ave_reldiff = 0.0
+      max_reldiff = -1.0
+
+      do n = 1, grid2_size
+        ave_reldiff = ave_reldiff + reldiff(n)
+        if (reldiff(n) > max_reldiff) then
+           max_reldiff = reldiff(n)
            maxrd_cell = n
            maxrd_area = grid2_area(n)
-           maxrd_true = area
+           maxrd_true = ref_area(n)
         endif
       end do
+
       ave_reldiff = ave_reldiff/grid2_size
 
       print *
@@ -523,6 +599,10 @@
       print *
 
 
+      deallocate(ref_area,reldiff)
+
+
+
       !***
       !*** In the following code, gridN_centroid_lat is being used to store
       !*** running tallies of the cell areas - so it is a misnomer used to
@@ -531,6 +611,10 @@
 
       grid1_centroid_lat = zero
       grid2_centroid_lat = zero
+
+C$OMP PARALLEL DEFAULT(SHARED) NUM_THREADS(nthreads)
+C$OMP&   PRIVATE(n,grid1_add,grid2_add,nwgt,weights)
+C$OMP DO SCHEDULE(DYNAMIC)
 
       do n=1,num_links_map1
         grid1_add = grid1_add_map1(n)
@@ -550,8 +634,10 @@
         if (norm_opt /= norm_opt_none .and. wts_map1(1,n) > 1.01) then
           print *,'Map 1 weight > 1 ',grid1_add,grid2_add,wts_map1(1,n)
         endif
+C$OMP   CRITICAL
         grid2_centroid_lat(grid2_add) = 
      &  grid2_centroid_lat(grid2_add) + wts_map1(1,n)
+C$OMP   END CRITICAL
 
         if (num_maps > 1) then
           if (wts_map2(1,n) < -.01) then
@@ -562,10 +648,15 @@
             print *,'Map 2 weight > 1 ',grid1_add,grid2_add,
      &                                  wts_map2(1,n)
           endif
+C$OMP     CRITICAL
           grid1_centroid_lat(grid1_add) = 
      &    grid1_centroid_lat(grid1_add) + wts_map2(1,n)
+C$OMP     END CRITICAL
         endif
       end do
+
+C$OMP END DO
+C$OMP END PARALLEL
 
 
       !***
@@ -595,6 +686,7 @@
         endif
       end do
 
+
       if (num_maps > 1) then
         do n=1,grid1_size
           select case(norm_opt)
@@ -622,10 +714,10 @@
       print *, 'Finished Conservative Remapping'
 
 
-c      call timer_print(1)
-c      call timer_print(2)
-c      call timer_print(3)
-c      call timer_print(4)
+      call timer_print(1)
+      call timer_print(2)
+      call timer_print(3)
+      call timer_print(4)
 
       end subroutine remap_conserv
 
@@ -772,9 +864,6 @@ c      call timer_print(4)
 
       integer (SCRIP_i4) ::
      &     tmpnseg
-
-
-
 
 
       if (grid_num .eq. 1) then
@@ -996,7 +1085,7 @@ c      call timer_print(4)
                               if (offset .ge. vec1_len) then
                                  exit
                               endif                               
-                              if (it .gt. 5) then
+                              if (it .gt. 3) then
                                  delta = 2.0*delta
                                  it = 0
                               endif
@@ -1251,7 +1340,7 @@ c      call timer_print(4)
                         !***
 
                         seg_outside = .false.
-                        delta = vec1_len/1000.00
+                        delta = vec1_len/100.00
                         offset = delta
                         do while (.not. srch_success)
                          
@@ -1434,21 +1523,29 @@ c      call timer_print(4)
                         call store_link_cnsrv(cell_add, oppcell_add, 
      &                       weights)
 
+C$OMP CRITICAL(block1)
                         grid1_frac(cell_add) = 
      &                       grid1_frac(cell_add) + weights(1)
-
+!
+!     Could have another thread that found an intersection between that
+!     cell address and oppcell_add in which case it will try to write
+!     into this address - we have to block that until we are finished
+!
                         grid2_frac(oppcell_add) = 
      &                      grid2_frac(oppcell_add) + weights(num_wts+1)
+C$OMP END CRITICAL(block1)
                      endif
                      
                   endif
-                  
+
+C$OMP CRITICAL(block2)                  
                   grid1_area(cell_add) = grid1_area(cell_add) + 
      &                 weights(1)
                   grid1_centroid_lat(cell_add) = 
      &                 grid1_centroid_lat(cell_add) + weights(2)
                   grid1_centroid_lon(cell_add) = 
      &                 grid1_centroid_lon(cell_add) + weights(3)
+C$OMP END CRITICAL(block2)
 
                else
 
@@ -1456,22 +1553,29 @@ c      call timer_print(4)
                      if (grid1_mask(oppcell_add)) then
                         call store_link_cnsrv(oppcell_add, cell_add, 
      &                       weights)
+C$OMP CRITICAL(block3)
                         grid2_frac(cell_add) = 
      &                       grid2_frac(cell_add) + weights(1)
-
+!
+!     Could have another thread that found an intersection between that
+!     cell address and oppcell_add in which case it will try to write
+!     into this address - we have to block that until we are finished
+!
                         grid1_frac(oppcell_add) = 
      &                      grid1_frac(oppcell_add) + weights(num_wts+1)
+C$OMP END CRITICAL(block3)
                      endif
                      
                   endif
                   
+C$OMP CRITICAL(block4)
                   grid2_area(cell_add) = grid2_area(cell_add) + 
      &                 weights(1)
                   grid2_centroid_lat(cell_add) = 
      &                 grid2_centroid_lat(cell_add) + weights(2)
                   grid2_centroid_lon(cell_add) = 
      &                 grid2_centroid_lon(cell_add) + weights(3)
-
+C$OMP END CRITICAL(block4)
                endif
 
                tmpnseg = tmpnseg + 1
@@ -1556,6 +1660,7 @@ c      call timer_print(4)
       end do                    ! do corner=....
 
       end subroutine cell_integrate
+
 
 
 
@@ -2197,8 +2302,8 @@ c      call timer_print(4)
      &     rhs1, rhs2,          !
      &     denom,               !
      &     intrsct_x, intrsct_y, ! intersection coordinates in transformed space
-     &     max_intrsct_lat = pi,   ! intersection point at max distance
-     &     max_intrsct_lon = 4*pi, ! from the start point
+     &     max_intrsct_lat,   ! intersection point at max distance
+     &     max_intrsct_lon, ! from the start point
      &     dist2,               ! dist of intersection point from start point
      &     maxdist2,            ! max dist of intersection point from start pnt
      &     lensqr1, lensqr2,    ! various segment lengths
@@ -2228,6 +2333,9 @@ c      call timer_print(4)
 !     initialize defaults, flags, etc.
 !
 !-----------------------------------------------------------------------
+
+      max_intrsct_lat = pi     ! intersection point at max distance
+      max_intrsct_lon = 4*pi   ! from the start point
 
       intedge = 0
       first = .true.
@@ -2814,6 +2922,8 @@ c      call timer_print(4)
 
 !***********************************************************************
 
+
+
       subroutine line_integral(phi_or_theta, weights, num_wts, 
      &                       in_phi1, in_phi2, theta1, theta2,
      &                       grid1_lat, grid1_lon, grid2_lat, grid2_lon)
@@ -2884,7 +2994,7 @@ c      call timer_print(4)
 !
 !     this routine computes the line integral of the flux function 
 !     that results in the interpolation weights.  the line is defined
-!     by the input lat/lon of the endpoints.
+!     by the input lat/lon of the endpoints. Integration is w.r.t. lon
 !
 !-----------------------------------------------------------------------
 
@@ -3028,6 +3138,8 @@ c      call timer_print(4)
 
 !***********************************************************************
 
+
+
       subroutine line_integral_theta(weights, num_wts, 
      &                       in_phi1, in_phi2, theta1, theta2,
      &                       grid1_lat, grid1_lon, grid2_lat, grid2_lon)
@@ -3036,7 +3148,7 @@ c      call timer_print(4)
 !
 !     this routine computes the line integral of the flux function 
 !     that results in the interpolation weights.  the line is defined
-!     by the input lat/lon of the endpoints.
+!     by the input lat/lon of the endpoints. Integration is w.r.t. lat
 !
 !-----------------------------------------------------------------------
 
@@ -3323,6 +3435,10 @@ c      call timer_print(4)
 !
 !-----------------------------------------------------------------------
 
+C$OMP CRITICAL(block5)
+!     first_call should be within critical block or else multiple threads
+!     will see it as true the first time around
+
       if (first_call) then
         allocate(link_add1(2,grid1_size), link_add2(2,grid2_size))
         link_add1 = 0
@@ -3338,6 +3454,7 @@ c      call timer_print(4)
           max_link = 0
         endif
       endif
+C$OMP END CRITICAL(block5)
 
 !-----------------------------------------------------------------------
 !
@@ -3352,11 +3469,13 @@ c      call timer_print(4)
         if (add1 == grid1_add_map1(nlink)) then
         if (add2 == grid2_add_map1(nlink)) then
 
+C$OMP CRITICAL(block3a)
           wts_map1(:,nlink) = wts_map1(:,nlink) + weights(1:num_wts)
           if (num_maps == 2) then
             wts_map2(:,nlink) = wts_map2(:,nlink) + 
      &                                  weights(num_wts+1:2*num_wts)
           endif
+C$OMP END CRITICAL(block3a)
           found = .true.
           exit
 
@@ -3374,6 +3493,8 @@ c      call timer_print(4)
 !     the new link.  then store the link.
 !
 !-----------------------------------------------------------------------
+
+C$OMP CRITICAL(block6)
 
       num_links_map1  = num_links_map1 + 1
       if (num_links_map1 > max_links_map1) 
@@ -3397,6 +3518,8 @@ c      call timer_print(4)
       if (link_add2(1,add2) == 0) link_add2(1,add2) = num_links_map1
       link_add1(2,add1) = num_links_map1
       link_add2(2,add2) = num_links_map1
+
+C$OMP END CRITICAL(block6)
 
 !-----------------------------------------------------------------------
 
@@ -3509,6 +3632,11 @@ c      call timer_print(4)
 !
 !-----------------------------------------------------------------------
 
+C$OMP THREADPRIVATE(first_call,last_cell,last_cell_grid_num,
+C$OMP& last_srch_grid_num,num_srch_cells,srch_corners,srch_add,
+C$OMP& srch_corner_lat,srch_corner_lon,srch_center_lat,
+C$OMP& srch_center_lon)
+
       lboundary = .false.
       edgeid = 0
       cont_cell = 0
@@ -3529,10 +3657,8 @@ c      call timer_print(4)
             num_srch_cells = 0
          else
             if (num_srch_cells .gt. 0) then
-               if (allocated(srch_add)) then
-                  deallocate(srch_add,srch_corner_lat,srch_corner_lon,
-     &                 srch_center_lat, srch_center_lon)
-               endif
+               deallocate(srch_add,srch_corner_lat,srch_corner_lon,
+     &              srch_center_lat, srch_center_lon)
             endif
          endif
 
@@ -3726,7 +3852,6 @@ c      call timer_print(4)
             
       end do
 
-
       return
 
 !----------------------------------------------------------------------
@@ -3734,6 +3859,7 @@ c      call timer_print(4)
       end subroutine locate_segstart
 
 !**********************************************************************
+
 
 
 
@@ -3829,6 +3955,10 @@ c      call timer_print(4)
 !
 !-----------------------------------------------------------------------
 
+C$OMP THREADPRIVATE(first_call,last_cell,last_cell_grid_num,
+C$OMP& last_srch_grid_num,num_srch_cells,srch_add,srch_corner_lat,
+C$OMP& srch_corner_lon,srch_center_lat,srch_center_lon)
+
       lboundary = .false.
       edgeid = 0
       cont_cell = 0
@@ -3849,9 +3979,7 @@ c      call timer_print(4)
             num_srch_cells = 0
          else
             if (num_srch_cells .gt. 0) then
-               if (allocated(srch_add)) then
-                  deallocate(srch_add,srch_corner_lat,srch_corner_lon)
-               endif
+               deallocate(srch_add,srch_corner_lat,srch_corner_lon)
             endif
          endif
 
@@ -3881,7 +4009,6 @@ c      call timer_print(4)
          endif         
             
       end do
-
 
 !----------------------------------------------------------------------
 
@@ -4892,7 +5019,7 @@ c      call timer_print(4)
      &     srch_corners_loc     ! Number of corners for search cells
 
       integer (SCRIP_i4), dimension(:), allocatable, save ::
-     &     srch_add_loc             ! Global addresses of search cells
+     &     srch_add_loc         ! Global addresses of search cells
 
       real (SCRIP_r8), dimension(:,:), allocatable, save ::
      &     srch_corner_lat_loc, 
@@ -4915,6 +5042,13 @@ c      call timer_print(4)
 
 !-----------------------------------------------------------------------
 
+C$OMP THREADPRIVATE(last_cell_add,last_cell_grid_num,
+C$OMP& last_srch_grid_num,first_call,num_srch_cells_loc,
+C$OMP& srch_corners_loc,srch_add_loc,srch_corner_lat_loc,
+C$OMP& srch_corner_lon_loc,srch_center_lat_loc,
+C$OMP& srch_center_lon_loc) 
+
+
       num_srch_cells = 0
          
       !***
@@ -4934,11 +5068,9 @@ c      call timer_print(4)
             last_srch_grid_num = 0
          else
             if (num_srch_cells_loc .gt. 0) then
-               if (allocated(srch_add_loc)) then
-                  deallocate(srch_add_loc,
-     &                 srch_corner_lat_loc,srch_corner_lon_loc,
-     &                 srch_center_lat_loc,srch_center_lon_loc)
-               endif
+               deallocate(srch_add_loc,
+     &              srch_corner_lat_loc,srch_corner_lon_loc,
+     &              srch_center_lat_loc,srch_center_lon_loc)
             endif
          endif
 
@@ -5229,11 +5361,9 @@ c      call timer_print(4)
       num_srch_cells = num_srch_cells_loc
 
       if (num_srch_cells .eq. 0) then
-         if (allocated(srch_add_loc)) then
-            deallocate(srch_add_loc,srch_corner_lat_loc,
-     &           srch_corner_lon_loc,srch_center_lat_loc,
-     &           srch_center_lon_loc)
-         endif
+         deallocate(srch_add_loc,srch_corner_lat_loc,
+     &        srch_corner_lon_loc,srch_center_lat_loc,
+     &        srch_center_lon_loc)
          return
       endif
 
@@ -5248,7 +5378,6 @@ c      call timer_print(4)
       srch_corner_lon = srch_corner_lon_loc
       srch_center_lat = srch_center_lat_loc
       srch_center_lon = srch_center_lon_loc
-
 
       end subroutine get_srch_cells
 !**********************************************************************
@@ -5310,6 +5439,10 @@ c      call timer_print(4)
       real (SCRIP_r8), dimension(:), allocatable, save ::
      &     srch_center_lat, srch_center_lon
 
+
+C$OMP THREADPRIVATE(first_call,last_cell,last_cell_grid_num,
+C$OMP& num_srch_cells,srch_corners,srch_add,srch_corner_lat,
+C$OMP& srch_corner_lon,srch_center_lat,srch_center_lon)
 
 
       adj_add = 0
@@ -5451,10 +5584,8 @@ c      call timer_print(4)
             last_cell_grid_num = 0
          else
             if (num_srch_cells .gt. 0) then
-               if (allocated(srch_add)) then
-                  deallocate(srch_add, srch_corner_lat, srch_corner_lon,
-     &                 srch_center_lat, srch_center_lon)
-               endif
+               deallocate(srch_add, srch_corner_lat, srch_corner_lon,
+     &         srch_center_lat, srch_center_lon)
             endif
          endif
 
@@ -5494,7 +5625,6 @@ c      call timer_print(4)
 
       return
       end subroutine find_adj_cell
-
 
 
 !----------------------------------------------------------------------
