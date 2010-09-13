@@ -108,8 +108,8 @@ converting other grid files to the proper format.
 \section{Compiling}
 
 In order to compile SCRIP, you need access to a
-Fortran 90 compiler and a netCDF library (version 3 or
-later).  In the source directory, you must edit the
+Fortran 90 compiler, a netCDF library (version 3 or
+later) and Open MP library.  In the source directory, you must edit the
 makefile to insert the appropriate compiler and compiler
 options for whatever machine you happen to work on.  The
 makefile currently only has SGI compiler options.  In
@@ -206,6 +206,7 @@ and contain a namelist as shown in Fig.~\ref{fig:nml}.
     num_polar_segs = 11
     npole_threshold =  1.5
     spole_threshold = -1.5
+    num_threads = 2
 /
 \end{verbatim}
 \end{figure}
@@ -306,6 +307,13 @@ increases the computational cost of the algorithm.
 It has generally been found that num\_polar\_segs~=~11 
 is a good variable setting and is the default.
 
+The variable num\_threads controls how many threads are used to run
+SCRIP. Running SCRIP with 2 to 4 threads on multi-core machines gives
+good scaling and can proportionally cut down the time to compute the
+remapping. Even on a single core machine, a user can run with two
+threads to take advantage of any latency. Currently, SCRIP does not
+scale very well for more than 4 threads although the code does show
+speedup as the number of threads goes up.
 
 \subsection{Grid Input Files}
 
