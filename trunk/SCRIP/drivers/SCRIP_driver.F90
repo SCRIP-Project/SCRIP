@@ -33,6 +33,14 @@
 !                                   latitude, longitude, latlon)
 !     num_srch_bins = [1-n] (integer number of search bins to divide
 !                                domain and speed grid searches)
+!     num_polar_segs = 11 (Number of segments each lat-lon line must be
+!                          subdivided into to get an accurate representation
+!                          of the equivalent curve in polar space
+!     npole_threshold = 1.5 (Latitude above which line segments are transformed
+!			    to Lambert Space in the northern hemisphere)
+!     spole_threshold = -1.5 (Latitude below with line segments are transformed
+!			    to Lambert space in the southern hemisphere
+!     num_threads     = 2 (Number of simultaneous threads to run program with)
 !  /
 !  \end{verbatim}
 !
@@ -240,6 +248,16 @@
                          outStringAfter= ' radians')
    if (SCRIP_ErrorCheck(errorCode, rtnName, &
        'error reading spole_threshold')) &
+           call SCRIP_driverExit(errorCode)
+
+   call SCRIP_ConfigRead(iunit, 'remapInputs',                     &
+                         'num_threads', nthreads, &
+                         2, &
+			 errorCode, & 
+                         outStringBefore='Number of threads ',&
+                         outStringAfter= '')
+   if (SCRIP_ErrorCheck(errorCode, rtnName, &
+       'error reading number of threads')) &
            call SCRIP_driverExit(errorCode)
 
 
