@@ -40,5 +40,5 @@ BEGIN { PRLINE = NAME".o: "
         # ONLY or rename), and print it in a dependency line.
         # exclude system-installed modules (eg netcdf) from dependencies
         sub(/,/,"",$2)
-        if ( $2 != "netcdf" && $2 != "mpi") print PRLINE COMPDIR "/" $2".o"
+        if ( $2 != "netcdf" && $2 != "mpi" && $2 != "omp_lib") print PRLINE COMPDIR "/" $2".o"
        }
