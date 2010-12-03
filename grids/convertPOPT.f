@@ -51,19 +51,31 @@
 !-----------------------------------------------------------------------
 
       integer (kind=SCRIP_i4), parameter ::
-     &             nx = 320, ny = 384,
+!     &             nx = 1560, ny = 1080,
+     &             nx = 1280, ny = 720,
      &             grid_size = nx*ny,
      &             grid_rank = 2,
      &             grid_corners = 4
+
+      logical, parameter :: 
+     &             global = .false.
 
       integer (kind=SCRIP_i4), dimension(2) ::
      &             grid_dims   ! size of each dimension
 
       character(SCRIP_CharLength), parameter :: 
-     &    grid_name = 'Greenland DP x1p',
-     &    grid_file_in  = '/scratch/pwjones/grid.320x384.da',
-     &    grid_topo_in  = '/scratch/pwjones/kmt.320x384.da',
-     &    grid_file_out = '/scratch/pwjones/Greenland_DP_x1p.nc'
+!     &    grid_name = 'RACM ar9v4 grid',
+!     &    grid_file_in  = '/fs/cgd/csm/inputdata/ocn/pop/ar9v4/grid/'//
+!     &                    'grid.ar9v4.ocn.20100623.ieeer8',
+!     &    grid_topo_in  = '/fs/cgd/csm/inputdata/ocn/pop/ar9v4/grid/'//
+!     &                    'kmt.ar9v4.ocn.20100920.ieeei4',
+!     &    grid_file_out = './ar9v4_100920.nc'
+     &    grid_name = 'RACM ar9v3 grid',
+     &    grid_file_in  = '/fs/cgd/csm/inputdata/ocn/pop/ar9v3/grid/'//
+     &                    'grid.ar9v3.ocn.20100622.ieeer8',
+     &    grid_topo_in  = '/fs/cgd/csm/inputdata/ocn/pop/ar9v3/grid/'//
+     &                    'kmt.ar9v3.ocn.20100622.ieeei4',
+     &    grid_file_out = './ar9v3_101129.nc'
 
       real (kind=SCRIP_r8), parameter ::
      &  radius    = 6370.0e5_SCRIP_r8       ! radius of Earth (cm)
@@ -97,6 +109,7 @@
 !-----------------------------------------------------------------------
 
       integer (kind=SCRIP_i4) :: i, j, n, iunit, ocn_add, im1, jm1
+      integer (kind=SCRIP_i4) :: ip1, jp1
 
       integer (kind=SCRIP_i4) ::
      &        ncstat,            ! general netCDF status variable
@@ -116,9 +129,11 @@
      &        nc_dims2_id        ! netCDF dim id array for 2-d arrays
 
       real (kind=SCRIP_r8) :: tmplon, dxt, dyt
-
+      real (kind=SCRIP_r8) :: lat1,lat2,lat3,lat4,lon1,lon2,lon3,lon4
+      real (kind=SCRIP_r8) :: tx,ty,tz,coslat
+      real (kind=SCRIP_r8) :: x1,x2,x3,x4,y1,y2,y3,y4,z1,z2,z3,z4
       integer (kind=SCRIP_i4) :: errorCode
-      character (12), parameter :: rtnName = 'convertPOPT'
+      character (11), parameter :: rtnName = 'convertPOPT'
 
 !-----------------------------------------------------------------------
 !
@@ -133,7 +148,6 @@
      &     form='unformatted', access='direct', recl=grid_size*4)
       read (unit=iunit,rec=1) grid_imask
 
-
       iunit=12
       open(unit=iunit, file=grid_file_in, status='old', 
      &     form='unformatted', access='direct', recl=grid_size*8)
@@ -144,6 +158,14 @@
 
       grid_dims(1) = nx
       grid_dims(2) = ny
+
+      write(6,*) 'nx,ny=',nx,ny
+      write(6,*) 'grid_corner_lat3 ',minval(grid_corner_lat(3,:)),
+     &  maxval(grid_corner_lat(3,:))
+      write(6,*) 'grid_corner_lon3 ',minval(grid_corner_lon(3,:)),
+     &  maxval(grid_corner_lon(3,:))
+      write(6,*) 'HTN ',minval(HTN),maxval(HTN)
+      write(6,*) 'HTE ',minval(HTE),maxval(HTE)
 
 !-----------------------------------------------------------------------
 !
@@ -159,46 +181,123 @@
 !
 !-----------------------------------------------------------------------
 
-      do j=1,ny
+      if (global) then
+
+        write(6,*) 'generating corners, global grid'
+
+        do j=1,ny
+          do i=1,nx
+            ocn_add = (j-1)*nx + i
+            if (i .ne. 1) then
+              im1 = ocn_add - 1
+            else
+              im1 = ocn_add + nx - 1
+            endif
+
+            grid_corner_lat(4,ocn_add) = grid_corner_lat(3,im1)
+            grid_corner_lon(4,ocn_add) = grid_corner_lon(3,im1)
+          end do
+        end do
+
+        do j=2,ny
+          do i=1,nx
+            ocn_add = (j-1)*nx + i
+            jm1 = (j-2)*nx + i
+
+            grid_corner_lat(2,ocn_add) = grid_corner_lat(3,jm1)
+            grid_corner_lat(1,ocn_add) = grid_corner_lat(4,jm1)
+
+            grid_corner_lon(2,ocn_add) = grid_corner_lon(3,jm1)
+            grid_corner_lon(1,ocn_add) = grid_corner_lon(4,jm1)
+          end do
+        end do
+
+        !     mock up the lower row boundaries
+
         do i=1,nx
-          ocn_add = (j-1)*nx + i
-          if (i .ne. 1) then
-            im1 = ocn_add - 1
-          else
-            im1 = ocn_add + nx - 1
+          grid_corner_lat(1,i) = -pih + tiny
+          grid_corner_lat(2,i) = -pih + tiny
+
+          grid_corner_lon(1,i) = grid_corner_lon(4,i)
+          grid_corner_lon(2,i) = grid_corner_lon(3,i)
+        end do
+
+      else  ! not global
+            ! extrapolates via lon/lat, could change to great circle
+
+        write(6,*) 'generating corners, non global grid'
+
+        !  copy 3 to neighbor 4
+
+        do j=1,ny
+          do i=2,nx
+            ocn_add = (j-1)*nx + i
+            if (i .ne. 1) then
+              im1 = ocn_add - 1
+            else
+              im1 = ocn_add + nx - 1
+            endif
+
+            grid_corner_lat(4,ocn_add) = grid_corner_lat(3,im1)
+            grid_corner_lon(4,ocn_add) = grid_corner_lon(3,im1)
+          end do
+        end do
+
+        !  mock up the left column boundaries via extrapolation
+
+        if (nx <= 1) stop  ! nx > 1 for this to work
+        do j = 1,ny
+          ocn_add = (j-1)*nx + 1
+          ip1 =     (j-1)*nx + 2
+          grid_corner_lat(4,ocn_add) = 2.0 * grid_corner_lat(3,ocn_add)
+     &                                     - grid_corner_lat(3,ip1)
+          grid_corner_lon(4,ocn_add) = 2.0 * grid_corner_lon(3,ocn_add)
+     &                                     - grid_corner_lon(3,ip1)
+        enddo
+
+        !  copy 3 to neighbor 2
+
+        do j=2,ny
+          do i=1,nx
+            ocn_add = (j-1)*nx + i
+            jm1 =     (j-2)*nx + i
+
+            grid_corner_lat(2,ocn_add) = grid_corner_lat(3,jm1)
+            grid_corner_lat(1,ocn_add) = grid_corner_lat(4,jm1)
+
+            grid_corner_lon(2,ocn_add) = grid_corner_lon(3,jm1)
+            grid_corner_lon(1,ocn_add) = grid_corner_lon(4,jm1)
+          end do
+        end do
+
+        !  mock up the lower row boundaries via extrapolation
+
+        if (ny <= 1) stop  ! ny > 1 for this to work
+        do i = 1,nx
+          ocn_add = i
+          jp1 =     nx + i
+          grid_corner_lat(2,ocn_add) = 2.0 * grid_corner_lat(3,ocn_add)
+     &                                     - grid_corner_lat(3,jp1)
+          grid_corner_lon(2,ocn_add) = 2.0 * grid_corner_lon(3,ocn_add)
+     &                                     - grid_corner_lon(3,jp1)
+          if (i < nx) then
+            ip1 =     i + 1
+            grid_corner_lat(1,ip1) = grid_corner_lat(2,ocn_add)
+            grid_corner_lon(1,ip1) = grid_corner_lon(2,ocn_add)
           endif
+        enddo
 
-          grid_corner_lat(4,ocn_add) = grid_corner_lat(3,im1)
-          grid_corner_lon(4,ocn_add) = grid_corner_lon(3,im1)
-        end do
-      end do
+        !  mock up the lower left hand corner via extrapolation
 
-      do j=2,ny
-        do i=1,nx
-          ocn_add = (j-1)*nx + i
-          jm1 = (j-2)*nx + i
+        ocn_add = 1
+        grid_corner_lat(1,ocn_add) = grid_corner_lat(2,ocn_add) + 
+     &                               grid_corner_lat(4,ocn_add) -
+     &                               grid_corner_lat(3,ocn_add)
+        grid_corner_lon(1,ocn_add) = grid_corner_lon(2,ocn_add) + 
+     &                               grid_corner_lon(4,ocn_add) -
+     &                               grid_corner_lon(3,ocn_add)
 
-          grid_corner_lat(2,ocn_add) = grid_corner_lat(3,jm1)
-          grid_corner_lat(1,ocn_add) = grid_corner_lat(4,jm1)
-
-          grid_corner_lon(2,ocn_add) = grid_corner_lon(3,jm1)
-          grid_corner_lon(1,ocn_add) = grid_corner_lon(4,jm1)
-        end do
-      end do
-
-!-----------------------------------------------------------------------
-!
-!     mock up the lower row boundaries
-!
-!-----------------------------------------------------------------------
-
-      do i=1,nx
-        grid_corner_lat(1,i) = -pih + tiny
-        grid_corner_lat(2,i) = -pih + tiny
-
-        grid_corner_lon(1,i) = grid_corner_lon(4,i)
-        grid_corner_lon(2,i) = grid_corner_lon(3,i)
-      end do
+      endif   ! global 
 
 !-----------------------------------------------------------------------
 !
@@ -229,24 +328,75 @@
 !
 !-----------------------------------------------------------------------
 
-      do ocn_add=1,grid_size
-        grid_center_lat(ocn_add) = grid_corner_lat(1,ocn_add)
-        grid_center_lon(ocn_add) = grid_corner_lon(1,ocn_add)
-        do n=2,grid_corners
-          grid_center_lat(ocn_add) = grid_center_lat(ocn_add) + 
-     &                               grid_corner_lat(n,ocn_add)
-          grid_center_lon(ocn_add) = grid_center_lon(ocn_add) + 
-     &                               grid_corner_lon(n,ocn_add)
+      if (.false.) then  ! old 4 cell average
+
+        do ocn_add=1,grid_size
+          grid_center_lat(ocn_add) = grid_corner_lat(1,ocn_add)
+          grid_center_lon(ocn_add) = grid_corner_lon(1,ocn_add)
+          do n=2,grid_corners
+            grid_center_lat(ocn_add) = grid_center_lat(ocn_add) + 
+     &                                 grid_corner_lat(n,ocn_add)
+            grid_center_lon(ocn_add) = grid_center_lon(ocn_add) + 
+     &                                 grid_corner_lon(n,ocn_add)
+          end do
+          grid_center_lat(ocn_add) = grid_center_lat(ocn_add)/
+     &                                    float(grid_corners)
+          grid_center_lon(ocn_add) = grid_center_lon(ocn_add)/
+     &                                    float(grid_corners)
+          if (grid_center_lon(ocn_add) > pi2) 
+     &        grid_center_lon(ocn_add) = grid_center_lon(ocn_add) - pi2
+          if (grid_center_lon(ocn_add) < 0.0) 
+     &        grid_center_lon(ocn_add) = grid_center_lon(ocn_add) + pi2
         end do
-        grid_center_lat(ocn_add) = grid_center_lat(ocn_add)/
-     &                                  float(grid_corners)
-        grid_center_lon(ocn_add) = grid_center_lon(ocn_add)/
-     &                                  float(grid_corners)
-        if (grid_center_lon(ocn_add) > pi2) 
-     &      grid_center_lon(ocn_add) = grid_center_lon(ocn_add) - pi2
-        if (grid_center_lon(ocn_add) < 0.0) 
+
+      else ! avg corner values in 3D space without pole problem
+
+        do ocn_add=1,grid_size
+          lat1 = grid_corner_lat(1,ocn_add)
+          lat2 = grid_corner_lat(2,ocn_add)
+          lat3 = grid_corner_lat(3,ocn_add)
+          lat4 = grid_corner_lat(4,ocn_add)
+
+          lon1 = grid_corner_lon(1,ocn_add)
+          lon2 = grid_corner_lon(2,ocn_add)
+          lon3 = grid_corner_lon(3,ocn_add)
+          lon4 = grid_corner_lon(4,ocn_add)
+
+          coslat = cos(lat1)
+          x1 = cos(lon1)*coslat
+          y1 = sin(lon1)*coslat
+          z1 = sin(lat1)
+
+          coslat = cos(lat2)
+          x2 = cos(lon2)*coslat
+          y2 = sin(lon2)*coslat
+          z2 = sin(lat2)
+
+          coslat = cos(lat3)
+          x3 = cos(lon3)*coslat
+          y3 = sin(lon3)*coslat
+          z3 = sin(lat3)
+
+          coslat = cos(lat4)
+          x4 = cos(lon4)*coslat
+          y4 = sin(lon4)*coslat
+          z4 = sin(lat4)
+
+          tx = (x1+x2+x3+x4)/four
+          ty = (y1+y2+y3+y4)/four
+          tz = (z1+z2+z3+z4)/four
+
+          tz = tz/sqrt(tx**2+ty**2+tz**2) ! normalize (unnecessary?)
+
+          grid_center_lon(ocn_add) = zero
+          if (tx /= zero .or. ty /= zero) 
+     &      grid_center_lon(ocn_add) = atan2(ty,tx)
+          if (grid_center_lon(ocn_add) < zero) 
      &      grid_center_lon(ocn_add) = grid_center_lon(ocn_add) + pi2
-      end do
+          grid_center_lat(ocn_add) = asin(tz)
+        end do
+
+      end if  ! method
 
 !-----------------------------------------------------------------------
 !
@@ -278,6 +428,27 @@
           grid_area(n) = dxt*dyt*area_norm
         end do
       end do
+
+      write(6,*) 'grid_corner_lat1 ',minval(grid_corner_lat(1,:)),
+     &  maxval(grid_corner_lat(1,:))
+      write(6,*) 'grid_corner_lon1 ',minval(grid_corner_lon(1,:)),
+     &  maxval(grid_corner_lon(1,:))
+      write(6,*) 'grid_corner_lat2 ',minval(grid_corner_lat(2,:)),
+     &  maxval(grid_corner_lat(2,:))
+      write(6,*) 'grid_corner_lon2 ',minval(grid_corner_lon(2,:)),
+     &  maxval(grid_corner_lon(2,:))
+      write(6,*) 'grid_corner_lat3 ',minval(grid_corner_lat(3,:)),
+     &  maxval(grid_corner_lat(3,:))
+      write(6,*) 'grid_corner_lon3 ',minval(grid_corner_lon(3,:)),
+     &  maxval(grid_corner_lon(3,:))
+      write(6,*) 'grid_corner_lat4 ',minval(grid_corner_lat(4,:)),
+     &  maxval(grid_corner_lat(4,:))
+      write(6,*) 'grid_corner_lon4 ',minval(grid_corner_lon(4,:)),
+     &  maxval(grid_corner_lon(4,:))
+      write(6,*) 'grid_center_lat ',minval(grid_center_lat(:)),
+     &  maxval(grid_center_lat(:))
+      write(6,*) 'grid_center_lon ',minval(grid_center_lon(:)),
+     &  maxval(grid_center_lon(:))
 
 !-----------------------------------------------------------------------
 !

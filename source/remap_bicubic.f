@@ -1,11 +1,11 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !
 !     this module contains necessary routines for performing an 
-!     bilinear interpolation.
+!     bicubic interpolation.
 !
 !-----------------------------------------------------------------------
 !
-!     CVS:$Id: remap_bilinear.f,v 1.6 2001/08/22 18:20:40 pwjones Exp $
+!     CVS:$Id: remap_bicubic.f,v 1.5 2001/08/22 18:20:41 pwjones Exp $
 !
 !     Copyright (c) 1997, 1998 the Regents of the University of 
 !       California.
@@ -32,11 +32,11 @@
 !
 !***********************************************************************
 
-      module remap_bilinear
+      module remap_bicubic
 
 !-----------------------------------------------------------------------
 
-      use SCRIP_KindsMod ! defines common data types
+      use SCRIP_KindsMod  ! defines common data types
       use constants     ! defines common constants
       use grids         ! module containing grid info
       use remap_vars    ! module containing remap info
@@ -57,11 +57,11 @@
 
 !***********************************************************************
 
-      subroutine remap_bilin
+      subroutine remap_bicub
 
 !-----------------------------------------------------------------------
 !
-!     this routine computes the weights for a bilinear interpolation.
+!     this routine computes the weights for a bicubic interpolation.
 !
 !-----------------------------------------------------------------------
 
@@ -81,8 +81,10 @@
 
       real (SCRIP_r8), dimension(4)  ::
      &     src_lats,       ! latitudes  of four bilinear corners
-     &     src_lons,       ! longitudes of four bilinear corners
-     &     wgts            ! bilinear weights for four corners
+     &     src_lons        ! longitudes of four bilinear corners
+
+      real (SCRIP_r8), dimension(4,4)  ::
+     &     wgts            ! bicubic weights for four corners
 
       real (SCRIP_r8) ::
      &     plat, plon,       ! lat/lon coords of destination point
@@ -94,7 +96,9 @@
      &     dthp, dphp,       ! difference between point and sw corner
      &     mat1, mat2, mat3, mat4, ! matrix elements
      &     determinant,      ! matrix determinant
-     &     sum_wgts          ! sum of weights for normalization
+     &     sum_wgts,         ! sum of weights for normalization
+     &     w1,w2,w3,w4,w5,w6,w7,w8, ! 16 bicubic weight functions
+     &     w9,w10,w11,w12,w13,w14,w15,w16
 
 !-----------------------------------------------------------------------
 !
@@ -104,7 +108,7 @@
 
       nmap = 1
       if (grid1_rank /= 2) then
-        stop 'Can not do bilinear interpolation when grid_rank /= 2'
+        stop 'Can not do bicubic interpolation when grid_rank /= 2'
       endif
 
       !***
@@ -118,14 +122,17 @@
         plat = grid2_center_lat(dst_add)
         plon = grid2_center_lon(dst_add)
 
-        !***
-        !*** find nearest square of grid points on source grid
-        !***
+!-----------------------------------------------------------------------
+!
+!       find nearest square of grid points on source grid
+!
+!-----------------------------------------------------------------------
 
-        call grid_search_bilin(src_add, src_lats, src_lons, 
+        call grid_search_bicub(src_add, src_lats, src_lons, 
      &                         plat, plon, grid1_dims,
      &                         grid1_center_lat, grid1_center_lon,
-     &                         grid1_bound_box, bin_addr1, bin_addr2)
+     &                         grid1_bound_box, bin_addr1,
+     &                         bin_lons1, bin_lats1, bin_sort1)
 
         !***
         !*** check to see if points are land points
@@ -137,16 +144,18 @@
           end do
         endif
 
-        !***
-        !*** if point found, find local i,j coordinates for weights
-        !***
+!-----------------------------------------------------------------------
+!
+!       if point found, find local i,j coordinates for weights
+!
+!-----------------------------------------------------------------------
 
         if (src_add(1) > 0) then
 
           grid2_frac(dst_add) = one
 
           !***
-          !*** iterate to find i,j for bilinear approximation
+          !*** iterate to find i,j for bicubic approximation
           !***
 
           dth1 = src_lats(2) - src_lats(1)
@@ -201,34 +210,62 @@
 
           if (iter <= max_iter) then
 
-            !***
-            !*** successfully found i,j - compute weights
-            !***
+!-----------------------------------------------------------------------
+!
+!           successfully found i,j - compute weights
+!
+!-----------------------------------------------------------------------
 
-            wgts(1) = (one-iguess)*(one-jguess)
-            wgts(2) = iguess*(one-jguess)
-            wgts(3) = iguess*jguess
-            wgts(4) = (one-iguess)*jguess
+            wgts(1,1) = (one - jguess**2*(three-two*jguess))*
+     &                  (one - iguess**2*(three-two*iguess))
+            wgts(1,2) = (one - jguess**2*(three-two*jguess))*
+     &                         iguess**2*(three-two*iguess)
+            wgts(1,3) =        jguess**2*(three-two*jguess)*
+     &                         iguess**2*(three-two*iguess)
+            wgts(1,4) =        jguess**2*(three-two*jguess)*
+     &                  (one - iguess**2*(three-two*iguess))
+            wgts(2,1) = (one - jguess**2*(three-two*jguess))*
+     &                         iguess*(iguess-one)**2
+            wgts(2,2) = (one - jguess**2*(three-two*jguess))*
+     &                         iguess**2*(iguess-one)
+            wgts(2,3) =        jguess**2*(three-two*jguess)*
+     &                         iguess**2*(iguess-one)
+            wgts(2,4) =        jguess**2*(three-two*jguess)*
+     &                         iguess*(iguess-one)**2
+            wgts(3,1) =        jguess*(jguess-one)**2*
+     &                  (one - iguess**2*(three-two*iguess))
+            wgts(3,2) =        jguess*(jguess-one)**2*
+     &                         iguess**2*(three-two*iguess)
+            wgts(3,3) =        jguess**2*(jguess-one)*
+     &                         iguess**2*(three-two*iguess)
+            wgts(3,4) =        jguess**2*(jguess-one)*
+     &                  (one - iguess**2*(three-two*iguess))
+            wgts(4,1) =        iguess*(iguess-one)**2*
+     &                         jguess*(jguess-one)**2
+            wgts(4,2) =        iguess**2*(iguess-one)*
+     &                         jguess*(jguess-one)**2
+            wgts(4,3) =        iguess**2*(iguess-one)*
+     &                         jguess**2*(jguess-one)
+            wgts(4,4) =        iguess*(iguess-one)**2*
+     &                         jguess**2*(jguess-one)
 
-            call store_link_bilin(dst_add, src_add, wgts, nmap)
+            call store_link_bicub(dst_add, src_add, wgts, nmap)
 
           else
-            print *,'Point coords: ',plat,plon
-            print *,'Dest grid lats: ',src_lats
-            print *,'Dest grid lons: ',src_lons
-            print *,'Dest grid addresses: ',src_add
-            print *,'Current i,j : ',iguess, jguess
             stop 'Iteration for i,j exceed max iteration count'
           endif
 
-        !***
-        !*** search for bilinear failed - use a distance-weighted
-        !*** average instead (this is typically near the pole)
-        !***
+!-----------------------------------------------------------------------
+!
+!       search for bilinear failed - use a distance-weighted
+!       average instead (this is typically near the pole)
+!
+!-----------------------------------------------------------------------
 
         else if (src_add(1) < 0) then
 
           src_add = abs(src_add)
+
           icount = 0
           do n=1,4
             if (grid1_mask(src_add(n))) then
@@ -242,13 +279,14 @@
             !*** renormalize weights
 
             sum_wgts = sum(src_lats)
-            wgts(1) = src_lats(1)/sum_wgts
-            wgts(2) = src_lats(2)/sum_wgts
-            wgts(3) = src_lats(3)/sum_wgts
-            wgts(4) = src_lats(4)/sum_wgts
+            wgts(1,1) = src_lats(1)/sum_wgts
+            wgts(1,2) = src_lats(2)/sum_wgts
+            wgts(1,3) = src_lats(3)/sum_wgts
+            wgts(1,4) = src_lats(4)/sum_wgts
+            wgts(2:4,:) = zero
 
             grid2_frac(dst_add) = one
-            call store_link_bilin(dst_add, src_add, wgts, nmap)
+            call store_link_bicub(dst_add, src_add, wgts, nmap)
           endif
 
         endif
@@ -264,7 +302,7 @@
 
       nmap = 2
       if (grid2_rank /= 2) then
-        stop 'Can not do bilinear interpolation when grid_rank /= 2'
+        stop 'Can not do bicubic interpolation when grid_rank /= 2'
       endif
 
       !***
@@ -282,10 +320,11 @@
         !*** find nearest square of grid points on source grid
         !***
 
-        call grid_search_bilin(src_add, src_lats, src_lons, 
+        call grid_search_bicub(src_add, src_lats, src_lons, 
      &                         plat, plon, grid2_dims,
      &                         grid2_center_lat, grid2_center_lon,
-     &                         grid2_bound_box, bin_addr2, bin_addr1)
+     &                         grid2_bound_box, bin_addr2,
+     &                         bin_lons2, bin_lats2, bin_sort2)
 
         !***
         !*** check to see if points are land points
@@ -365,19 +404,42 @@
             !*** successfully found i,j - compute weights
             !***
 
-            wgts(1) = (one-iguess)*(one-jguess)
-            wgts(2) = iguess*(one-jguess)
-            wgts(3) = iguess*jguess
-            wgts(4) = (one-iguess)*jguess
+            wgts(1,1) = (one - jguess**2*(three-two*jguess))*
+     &                  (one - iguess**2*(three-two*iguess))
+            wgts(1,2) = (one - jguess**2*(three-two*jguess))*
+     &                         iguess**2*(three-two*iguess)
+            wgts(1,3) =        jguess**2*(three-two*jguess)*
+     &                         iguess**2*(three-two*iguess)
+            wgts(1,4) =        jguess**2*(three-two*jguess)*
+     &                  (one - iguess**2*(three-two*iguess))
+            wgts(2,1) = (one - jguess**2*(three-two*jguess))*
+     &                         iguess*(iguess-one)**2
+            wgts(2,2) = (one - jguess**2*(three-two*jguess))*
+     &                         iguess**2*(iguess-one)
+            wgts(2,3) =        jguess**2*(three-two*jguess)*
+     &                         iguess**2*(iguess-one)
+            wgts(2,4) =        jguess**2*(three-two*jguess)*
+     &                         iguess*(iguess-one)**2
+            wgts(3,1) =        jguess*(jguess-one)**2*
+     &                  (one - iguess**2*(three-two*iguess))
+            wgts(3,2) =        jguess*(jguess-one)**2*
+     &                         iguess**2*(three-two*iguess)
+            wgts(3,3) =        jguess**2*(jguess-one)*
+     &                         iguess**2*(three-two*iguess)
+            wgts(3,4) =        jguess**2*(jguess-one)*
+     &                  (one - iguess**2*(three-two*iguess))
+            wgts(4,1) =        iguess*(iguess-one)**2*
+     &                         jguess*(jguess-one)**2
+            wgts(4,2) =        iguess**2*(iguess-one)*
+     &                         jguess*(jguess-one)**2
+            wgts(4,3) =        iguess**2*(iguess-one)*
+     &                         jguess**2*(jguess-one)
+            wgts(4,4) =        iguess*(iguess-one)**2*
+     &                         jguess**2*(jguess-one)
 
-            call store_link_bilin(dst_add, src_add, wgts, nmap)
+            call store_link_bicub(dst_add, src_add, wgts, nmap)
 
           else
-            print *,'Point coords: ',plat,plon
-            print *,'Dest grid lats: ',src_lats
-            print *,'Dest grid lons: ',src_lons
-            print *,'Dest grid addresses: ',src_add
-            print *,'Current i,j : ',iguess, jguess
             stop 'Iteration for i,j exceed max iteration count'
           endif
 
@@ -389,6 +451,7 @@
         else if (src_add(1) < 0) then
 
           src_add = abs(src_add)
+
           icount = 0
           do n=1,4
             if (grid2_mask(src_add(n))) then
@@ -402,13 +465,14 @@
             !*** renormalize weights
 
             sum_wgts = sum(src_lats)
-            wgts(1) = src_lats(1)/sum_wgts
-            wgts(2) = src_lats(2)/sum_wgts
-            wgts(3) = src_lats(3)/sum_wgts
-            wgts(4) = src_lats(4)/sum_wgts
+            wgts(1,1) = src_lats(1)/sum_wgts
+            wgts(1,2) = src_lats(2)/sum_wgts
+            wgts(1,3) = src_lats(3)/sum_wgts
+            wgts(1,4) = src_lats(4)/sum_wgts
+            wgts(2:4,:) = zero
 
             grid1_frac(dst_add) = one
-            call store_link_bilin(dst_add, src_add, wgts, nmap)
+            call store_link_bicub(dst_add, src_add, wgts, nmap)
           endif
 
         endif
@@ -418,20 +482,21 @@
 
 !-----------------------------------------------------------------------
 
-      end subroutine remap_bilin
+      end subroutine remap_bicub
 
 !***********************************************************************
 
-      subroutine grid_search_bilin(src_add, src_lats, src_lons, 
+      subroutine grid_search_bicub(src_add, src_lats, src_lons, 
      &                             plat, plon, src_grid_dims,
      &                             src_center_lat, src_center_lon,
-     &                             src_grid_bound_box,
-     &                             src_bin_add, dst_bin_add)
+     &                             src_bound_box,
+     &                             src_bin_add, src_bin_lons,
+     &                             src_bin_lats, src_bin_sort)
 
 !-----------------------------------------------------------------------
 !
 !     this routine finds the location of the search point plat, plon
-!     in the source grid and returns the corners needed for a bilinear
+!     in the source grid and returns the corners needed for a bicubic
 !     interpolation.
 !
 !-----------------------------------------------------------------------
@@ -467,11 +532,17 @@
      &        src_center_lon  ! longitude of each src grid center
 
       real (SCRIP_r8), dimension(:,:), intent(in) ::
-     &        src_grid_bound_box ! bound box for source grid
+     &        src_bound_box   ! bounding box for src grid search
 
       integer (SCRIP_i4), dimension(:,:), intent(in) ::
-     &        src_bin_add,    ! latitude bins for restricting
-     &        dst_bin_add     ! searches
+     &        src_bin_add    ! search bins for restricting
+
+      integer (SCRIP_i4), dimension(:), intent(in) ::
+     &        src_bin_sort  ! sorted bin addresses
+
+      real (SCRIP_r8), dimension(:,:), intent(in) ::
+     &        src_bin_lons,         ! lon of src bins
+     &        src_bin_lats          ! lat of src bins
 
 !-----------------------------------------------------------------------
 !
@@ -482,7 +553,8 @@
       integer (SCRIP_i4) :: n, next_n, srch_add,   ! dummy indices
      &    nx, ny,            ! dimensions of src grid
      &    min_add, max_add,  ! addresses for restricting search
-     &    i, j, jp1, ip1, n_add, e_add, ne_add  ! addresses
+     &    i, j, jp1, ip1, n_add, e_add, ne_add,  ! addresses
+     &    nb, addr
 
       real (SCRIP_r8) ::  ! vectors for cross-product check
      &      vec1_lat, vec1_lon,
@@ -498,33 +570,34 @@
 
       src_add = 0
 
-      min_add = size(src_center_lat)
-      max_add = 1
-      do n=1,num_srch_bins
-        if (plat >= bin_lats(1,n) .and. plat <= bin_lats(2,n) .and.
-     &      plon >= bin_lons(1,n) .and. plon <= bin_lons(2,n)) then
-          min_add = min(min_add, src_bin_add(1,n))
-          max_add = max(max_add, src_bin_add(2,n))
-        endif
-      end do
- 
-!-----------------------------------------------------------------------
-!
-!     now perform a more detailed search 
-!
-!-----------------------------------------------------------------------
-
       nx = src_grid_dims(1)
       ny = src_grid_dims(2)
 
-      srch_loop: do srch_add = min_add,max_add
+!      min_add = size(src_center_lat)
+!      max_add = 1
+      do nb=1,num_srch_bins
+        if (plat >= src_bin_lats(1,nb) .and. 
+     &      plat <= src_bin_lats(2,nb) .and.
+     &      plon >= src_bin_lons(1,nb) .and. 
+     &      plon <= src_bin_lons(2,nb)) then
+          min_add = src_bin_add(1,nb)
+          max_add = src_bin_add(2,nb)
+ 
+!-----------------------------------------------------------------------
+!
+!     now perform a more detailed bilinear search 
+!
+!-----------------------------------------------------------------------
+
+      srch_loop: do addr = min_add,max_add
+        srch_add = src_bin_sort(addr)
 
         !*** first check bounding box
 
-        if (plat <= src_grid_bound_box(2,srch_add) .and. 
-     &      plat >= src_grid_bound_box(1,srch_add) .and.
-     &      plon <= src_grid_bound_box(4,srch_add) .and. 
-     &      plon >= src_grid_bound_box(3,srch_add)) then
+        if (plat <= src_bound_box(2,srch_add) .and. 
+     &      plat >= src_bound_box(1,srch_add) .and.
+     &      plon <= src_bound_box(4,srch_add) .and. 
+     &      plon >= src_bound_box(3,srch_add)) then
 
           !***
           !*** we are within bounding box so get really serious
@@ -567,14 +640,14 @@
           !***
 
           vec1_lon = src_lons(1) - plon
-          if (vec1_lon >  pi) then
+          if (vec1_lon > pi) then
             src_lons(1) = src_lons(1) - pi2
           else if (vec1_lon < -pi) then
             src_lons(1) = src_lons(1) + pi2
           endif
           do n=2,4
             vec1_lon = src_lons(n) - src_lons(1)
-            if (vec1_lon >  pi) then
+            if (vec1_lon > pi) then
               src_lons(n) = src_lons(n) - pi2
             else if (vec1_lon < -pi) then
               src_lons(n) = src_lons(n) + pi2
@@ -645,6 +718,15 @@
         endif !bounding box check
       end do srch_loop
 
+!-----------------------------------------------------------------------
+!
+!     end more detailed bilinear search 
+!
+!-----------------------------------------------------------------------
+
+        endif   ! plon plat in bin
+      end do  ! num_srch_bins
+
       !***
       !*** if no cell found, point is likely either in a box that
       !*** straddles either pole or is outside the grid.  fall back
@@ -664,7 +746,18 @@
 
       dist_min = bignum
       src_lats = bignum
-      do srch_add = min_add,max_add
+
+      do nb=1,num_srch_bins
+        if (plat >= src_bin_lats(1,nb) .and. 
+     &      plat <= src_bin_lats(2,nb) .and.
+     &      plon >= src_bin_lons(1,nb) .and. 
+     &      plon <= src_bin_lons(2,nb)) then
+          min_add = src_bin_add(1,nb)
+          max_add = src_bin_add(2,nb)
+
+!---  start distwgt search
+      do addr = min_add,max_add
+        srch_add = src_bin_sort(addr)
         distance = acos(coslat_dst*cos(src_center_lat(srch_add))*
      &                 (coslon_dst*cos(src_center_lon(srch_add)) +
      &                  sinlon_dst*sin(src_center_lon(srch_add)))+
@@ -684,7 +777,11 @@
             endif
           end do sort_loop
         endif
-      end do
+      end do   ! addr
+!---  end distwgt search
+
+        endif   ! plon plat in bin
+      end do  ! num_srch_bins
 
       src_lons = one/(src_lats + tiny)
       distance = sum(src_lons)
@@ -692,11 +789,11 @@
 
 !-----------------------------------------------------------------------
 
-      end subroutine grid_search_bilin 
+      end subroutine grid_search_bicub 
 
 !***********************************************************************
 
-      subroutine store_link_bilin(dst_add, src_add, weights, nmap)
+      subroutine store_link_bicub(dst_add, src_add, weights, nmap)
 
 !-----------------------------------------------------------------------
 !
@@ -719,7 +816,7 @@
       integer (SCRIP_i4), dimension(4), intent(in) ::
      &        src_add   ! addresses on source grid
 
-      real (SCRIP_r8), dimension(4), intent(in) ::
+      real (SCRIP_r8), dimension(4,4), intent(in) ::
      &        weights ! array of remapping weights for these links
 
 !-----------------------------------------------------------------------
@@ -751,7 +848,7 @@
         do n=1,4
           grid1_add_map1(num_links_old+n) = src_add(n)
           grid2_add_map1(num_links_old+n) = dst_add
-          wts_map1    (1,num_links_old+n) = weights(n)
+          wts_map1    (:,num_links_old+n) = weights(:,n)
         end do
 
       case(2)
@@ -765,17 +862,17 @@
         do n=1,4
           grid1_add_map2(num_links_old+n) = dst_add
           grid2_add_map2(num_links_old+n) = src_add(n)
-          wts_map2    (1,num_links_old+n) = weights(n)
+          wts_map2    (:,num_links_old+n) = weights(:,n)
         end do
 
       end select
 
 !-----------------------------------------------------------------------
 
-      end subroutine store_link_bilin
+      end subroutine store_link_bicub
 
 !***********************************************************************
 
-      end module remap_bilinear
+      end module remap_bicubic
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

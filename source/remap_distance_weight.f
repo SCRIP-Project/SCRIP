@@ -149,7 +149,8 @@
      &                       grid2_center_lon(dst_add),
      &                       coslat_dst, coslon_dst, 
      &                       sinlat_dst, sinlon_dst,
-     &                       bin_addr1, bin_addr2)
+     &                       bin_addr1, bin_lons1, 
+     &                       bin_lats1, bin_sort1)
 
         !***
         !*** compute weights based on inverse distance
@@ -229,7 +230,8 @@
      &                       grid1_center_lon(dst_add),
      &                       coslat_dst, coslon_dst, 
      &                       sinlat_dst, sinlon_dst,
-     &                       bin_addr2, bin_addr1)
+     &                       bin_addr2, bin_lons2, 
+     &                       bin_lats2, bin_sort2)
 
         !***
         !*** compute weights based on inverse distance
@@ -274,8 +276,8 @@
 !***********************************************************************
 
       subroutine grid_search_nbr(nbr_add, nbr_dist, plat, plon, 
-     &               coslat_dst, coslon_dst, sinlat_dst, sinlon_dst,
-     &               src_bin_add, dst_bin_add)
+     &          coslat_dst, coslon_dst, sinlat_dst, sinlon_dst,
+     &          src_bin_add, src_bin_lons, src_bin_lats, src_bin_sort)
 
 !-----------------------------------------------------------------------
 !
@@ -303,8 +305,7 @@
 !-----------------------------------------------------------------------
 
       integer (SCRIP_i4), dimension(:,:), intent(in) ::
-     &        src_bin_add, ! search bins for restricting search
-     &        dst_bin_add   
+     &        src_bin_add ! search bins for restricting search
 
       real (SCRIP_r8), intent(in) ::
      &        plat,         ! latitude  of the search point
@@ -314,6 +315,13 @@
      &        sinlat_dst,   ! sin(lat)  of the search point
      &        sinlon_dst    ! sin(lon)  of the search point
 
+      integer (SCRIP_i4), dimension(:), intent(in) ::
+     &        src_bin_sort  ! sorted bin addresses
+
+      real (SCRIP_r8), dimension(:,:), intent(in) ::
+     &        src_bin_lons,         ! lon of src bins
+     &        src_bin_lats          ! lat of src bins
+
 !-----------------------------------------------------------------------
 !
 !     local variables
@@ -321,7 +329,8 @@
 !-----------------------------------------------------------------------
 
       integer (SCRIP_i4) :: n, nmax, nadd, nchk, ! dummy indices
-     &        min_add, max_add, nm1, np1, i, j, ip1, im1, jp1, jm1
+     &        min_add, max_add, nm1, np1, i, j, ip1, im1, jp1, jm1,
+     &        addr
 
       real (SCRIP_r8) ::
      &        distance      ! angular distance
@@ -335,13 +344,34 @@
       !***
       !*** restrict the search using search bins
       !*** expand the bins to catch neighbors
+      !*** ONLY WORKS FOR OVERLAPPING CELLS
       !***
 
       select case (restrict_type)
       case('latitude')
 
         do n=1,num_srch_bins
-          if (plat >= bin_lats(1,n) .and. plat <= bin_lats(2,n)) then
+          if (plat >= src_bin_lats(1,n) .and. 
+     &        plat <= src_bin_lats(2,n)) then
+            min_add = src_bin_add(1,n)
+            max_add = src_bin_add(2,n)
+
+            nm1 = max(n-1,1)
+            np1 = min(n+1,num_srch_bins)
+
+            min_add = min(min_add,src_bin_add(1,nm1))
+            max_add = max(max_add,src_bin_add(2,nm1))
+            min_add = min(min_add,src_bin_add(1,np1))
+            max_add = max(max_add,src_bin_add(2,np1))
+          endif
+        end do
+
+
+      case('longitude')
+
+        do n=1,num_srch_bins
+          if (plon >= src_bin_lons(1,n) .and. 
+     &        plon <= src_bin_lons(2,n)) then
             min_add = src_bin_add(1,n)
             max_add = src_bin_add(2,n)
 
@@ -367,8 +397,10 @@
           im1 = max(i-1,1)
 
           n = n+1
-          if (plat >= bin_lats(1,n) .and. plat <= bin_lats(2,n) .and.
-     &        plon >= bin_lons(1,n) .and. plon <= bin_lons(3,n)) then
+          if (plat >= src_bin_lats(1,n) .and. 
+     &        plat <= src_bin_lats(2,n) .and.
+     &        plon >= src_bin_lons(1,n) .and. 
+     &        plon <= src_bin_lons(3,n)) then
             min_add = src_bin_add(1,n)
             max_add = src_bin_add(2,n)
 
@@ -394,11 +426,13 @@
       nbr_add = 0
       nbr_dist = bignum
 
-      do nadd=min_add,max_add
+      do addr=min_add,max_add
 
         !***
         !*** find distance to this point
         !***
+
+        nadd = src_bin_sort(addr)
 
         distance = acos(sinlat_dst*sinlat(nadd) +
      &                  coslat_dst*coslat(nadd)*

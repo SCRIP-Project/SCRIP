@@ -59,6 +59,9 @@
       character (len=8), dimension(max_timers), save ::  
      &     status           ! timer status string
 
+      character (len=32), dimension(max_timers), save ::  
+     &     tname           ! timer status string
+
 !***********************************************************************
 
       contains
@@ -193,12 +196,12 @@
       !---
 
       if (status(timer) .eq. 'stopped') then
-        write(*,"(' CPU time for timer',i3,':',1p,e16.8)")  
-     &       timer,cputime(timer)
+        write(*,"(' CPU time for timer',i3,':',1p,f20.8,1x,a)")  
+     &       timer,cputime(timer),trim(tname(timer))
       else
         call timer_stop(timer)
-        write(*,"(' CPU time for timer',i3,':',1p,e16.8)")  
-     &       timer,cputime(timer)
+        write(*,"(' CPU time for timer',i3,':',1p,f20.8,1x,a)")  
+     &       timer,cputime(timer),trim(tname(timer))
         call timer_start(timer)
       endif
 
@@ -208,7 +211,7 @@
 
 !***********************************************************************
 
-      subroutine timer_start(timer)
+      subroutine timer_start(timer,name)
 
 !-----------------------------------------------------------------------
 !
@@ -224,6 +227,8 @@
 
       integer (SCRIP_i4), intent(in) ::  
      &    timer            ! timer number
+      character(len=*), intent(in), optional ::
+     &    name
 
 !-----------------------------------------------------------------------
 
@@ -234,6 +239,11 @@
       if (status(timer) .eq. 'stopped') then
         call system_clock(count=cycles1(timer))
         status(timer) = 'running'
+        if (present(name)) then
+           tname(timer) = trim(name)
+        else
+           tname(timer) = ' '
+        endif
       endif
 
 !-----------------------------------------------------------------------
