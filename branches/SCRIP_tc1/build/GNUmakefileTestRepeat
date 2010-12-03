@@ -100,7 +100,7 @@ endif
 
 $(TARGETX): depends
 	@echo "  GNUmakefile is making target '$(TARGETX)'"
-	@make -f $(SCRIPDIR)/build/compile.mk SCRIPEXEDIR=$(SCRIPEXEDIR) SCRIPDIR=$(SCRIPDIR) OPTIMIZE=$(OPTIMIZE) TARGETX=$(TARGETX) 
+	@gmake -f $(SCRIPDIR)/build/compile.mk SCRIPEXEDIR=$(SCRIPEXEDIR) SCRIPDIR=$(SCRIPDIR) OPTIMIZE=$(OPTIMIZE) TARGETX=$(TARGETX) 
 
 #----------------------------------------------------------------------------
 #
@@ -111,7 +111,7 @@ $(TARGETX): depends
 depends: preprocess
 	@echo "$(SCRIPEXEDIR) $(SCRIPDIR)"
 	@echo "$(SCRIPARCH) automatically generating dependencies for compiling"
-	@make -f $(SCRIPDIR)/build/depends.mk SCRIPEXEDIR=$(SCRIPEXEDIR) OPTIMIZE=$(OPTIMIZE)
+	@gmake -f $(SCRIPDIR)/build/depends.mk SCRIPEXEDIR=$(SCRIPEXEDIR) OPTIMIZE=$(OPTIMIZE)
 
 #----------------------------------------------------------------------------
 #
@@ -121,7 +121,7 @@ depends: preprocess
 
 preprocess: dirs
 	@echo "$(SCRIPARCH) preprocess SCRIP source"
-	@make -f $(SCRIPDIR)/build/preprocess.mk
+	@gmake -f $(SCRIPDIR)/build/preprocess.mk
 
 #----------------------------------------------------------------------------
 #

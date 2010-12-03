@@ -125,6 +125,8 @@
 !
 !-----------------------------------------------------------------------
 
+      call timer_start(9,'remap_conserv')
+
       print *,'grid1 sweep'
 
       if (grid1_size > 1000000) then
@@ -136,7 +138,7 @@
       grid_num = 1
       opp_grid_num = 2
 
-      call timer_start(1)
+      call timer_start(1,'map1')
 
 C$OMP PARALLEL DEFAULT(SHARED) PRIVATE(grid1_add) NUM_THREADS(nthreads)
 
@@ -174,7 +176,7 @@ C$OMP END PARALLEL
       grid_num = 2
       opp_grid_num = 1
 
-      call timer_start(2)
+      call timer_start(2,'map2')
 
 C$OMP PARALLEL DEFAULT(SHARED) PRIVATE(grid2_add) NUM_THREADS(nthreads)
 
@@ -324,7 +326,7 @@ C$OMP END PARALLEL
 !
 !-----------------------------------------------------------------------
 
-      call timer_start(3)
+      call timer_start(3,'centroid')
 
 C$OMP WORKSHARE
       where (grid1_area /= zero)
@@ -457,6 +459,7 @@ C$OMP END WORKSHARE
 !
 !-----------------------------------------------------------------------
 
+      call timer_start(4,'check')
       allocate(ref_area(grid1_size))
       allocate(reldiff(grid1_size))
 
@@ -713,11 +716,22 @@ C$OMP END PARALLEL
 
       print *, 'Finished Conservative Remapping'
 
+      call timer_stop(9)
 
+      call timer_print(9)
       call timer_print(1)
       call timer_print(2)
       call timer_print(3)
       call timer_print(4)
+      call timer_print(5)
+!      call timer_print(21)
+!      call timer_print(22)
+!      call timer_print(23)
+!      call timer_print(24)
+!      call timer_print(25)
+!      call timer_print(26)
+!      call timer_print(27)
+!      call timer_print(28)
 
       end subroutine remap_conserv
 
@@ -3251,7 +3265,7 @@ C$OMP END CRITICAL(block4)
 
 !           theta at phi = pi
             theta_pi = theta1 + (pi - phi1)*dtheta/(phi2 + pi2 - phi1)
-            print *, ''
+            print *, ' '
             print *, 'phi1',phi1,'    phi2',phi2
             print *, 'theta1',theta1,'    theta2',theta2
             print *, 'theta_pi',theta_pi
@@ -3272,7 +3286,7 @@ C$OMP END CRITICAL(block4)
        
 !           theta at phi = -pi
             theta_pi = theta1 + (-pi - phi1)*dtheta/(phi2 - pi2 - phi1)
-            print *, ''
+            print *, ' '
             print *, 'phi1',phi1,'    phi2',phi2
             print *, 'theta1',theta1,'    theta2',theta2
             print *, 'theta_pi',theta_pi
@@ -3328,7 +3342,7 @@ C$OMP END CRITICAL(block4)
          if (phi1 > zero) then
             
             theta_pi = theta1 + (pi - phi1)*dtheta/(phi2 + pi2 - phi1)
-            print *, ''
+            print *, ' '
             print *, 'phi1',phi1,'    phi2',phi2
             print *, 'theta1',theta1,'    theta2',theta2
             print *, 'theta_pi',theta_pi
@@ -3348,7 +3362,7 @@ C$OMP END CRITICAL(block4)
          else
             
             theta_pi = theta1 + (-pi - phi1)*dtheta/(phi2 - pi2 - phi1)
-            print *, ''
+            print *, ' '
             print *, 'phi1',phi1,'    phi2',phi2
             print *, 'theta1',theta1,'    theta2',theta2
             print *, 'theta_pi',theta_pi
@@ -5038,16 +5052,17 @@ C$OMP& srch_corner_lon,srch_center_lat,srch_center_lon)
      &     first_call=.true.
 
       integer (SCRIP_i4) :: grid1_add, grid2_add, max_add, min_add,
-     &     n
+     &     n, addr
 
 !-----------------------------------------------------------------------
+
+!      call timer_start(5,'get_srch_cells')
 
 C$OMP THREADPRIVATE(last_cell_add,last_cell_grid_num,
 C$OMP& last_srch_grid_num,first_call,num_srch_cells_loc,
 C$OMP& srch_corners_loc,srch_add_loc,srch_corner_lat_loc,
 C$OMP& srch_corner_lon_loc,srch_center_lat_loc,
 C$OMP& srch_center_lon_loc) 
-
 
       num_srch_cells = 0
          
@@ -5077,277 +5092,288 @@ C$OMP& srch_center_lon_loc)
 
          if (cell_grid_num == 1) then
 
-            if (srch_grid_num == 1) then
+           if (srch_grid_num == 1) then
 
-               !*** Grid 1 neighbors of grid 1 cell
+!             call timer_start(21,'srch11a')
 
-               allocate(srch_mask(grid1_size))
+             !*** Grid 1 neighbors of grid 1 cell
 
-               min_add = grid1_size
-               max_add = 1
-               do n=1,num_srch_bins
-                  if (cell_add >= bin_addr1(1,n) .and.
-     &                 cell_add <= bin_addr1(2,n)) then
-                     min_add = min(min_add, bin_addr1(1,n))
-                     max_add = max(max_add, bin_addr1(2,n))
-                  endif
-               end do
+             allocate(srch_mask(grid1_size))
+             srch_mask = .false.
 
-               !***
-               !*** further restrict searches using bounding boxes
-               !***
-
-               num_srch_cells_loc = 0
-               do grid1_add = min_add,max_add
-                  srch_mask(grid1_add) = 
+             min_add = grid1_size
+             max_add = 1
+             num_srch_cells_loc = 0
+             do n = 1, num_srch_bins
+               if (grid1_bound_box(1,cell_add) <= bin_lats1(2,n) .and.
+     &             grid1_bound_box(2,cell_add) >= bin_lats1(1,n) .and.
+     &             grid1_bound_box(3,cell_add) <= bin_lons1(2,n) .and.
+     &             grid1_bound_box(4,cell_add) >= bin_lons1(1,n)) then
+!!        write(6,*) 'tcx11a ',cell_add,n,bin_addr1(1,n),bin_addr1(2,n)
+                 do addr = bin_addr1(1,n),bin_addr1(2,n)
+                   grid1_add = bin_sort1(addr)
+                   srch_mask(grid1_add) = 
      &                 (grid1_bound_box(1,grid1_add) <= 
-     &                 grid1_bound_box(2,cell_add)) .and.
+     &                  grid1_bound_box(2,cell_add)) .and.
      &                 (grid1_bound_box(2,grid1_add) >= 
-     &                 grid1_bound_box(1,cell_add)) .and.
+     &                  grid1_bound_box(1,cell_add)) .and.
      &                 (grid1_bound_box(3,grid1_add) <= 
-     &                 grid1_bound_box(4,cell_add)) .and.
+     &                  grid1_bound_box(4,cell_add)) .and.
      &                 (grid1_bound_box(4,grid1_add) >= 
-     &                 grid1_bound_box(3,cell_add))
+     &                  grid1_bound_box(3,cell_add))
                   
-                  if (srch_mask(grid1_add)) 
-     &                 num_srch_cells_loc = num_srch_cells_loc+1
-               end do
+                   if (srch_mask(grid1_add)) then
+                     num_srch_cells_loc = num_srch_cells_loc+1
+                     min_add = min(min_add,grid1_add)
+                     max_add = max(max_add,grid1_add)
+                   endif
+                 end do
+               endif
+             end do
 
-               !***
-               !*** create search arrays
-               !***
+!             call timer_stop(21)
+!             call timer_start(22,'srch11b')
 
-               allocate(srch_add_loc(num_srch_cells_loc),
-     &            srch_corner_lat_loc(grid1_corners,num_srch_cells_loc),
-     &            srch_corner_lon_loc(grid1_corners,num_srch_cells_loc),
-     &            srch_center_lat_loc(num_srch_cells_loc),
-     &            srch_center_lon_loc(num_srch_cells_loc))
+             allocate(srch_add_loc(num_srch_cells_loc),
+     &          srch_corner_lat_loc(grid1_corners,num_srch_cells_loc),
+     &          srch_corner_lon_loc(grid1_corners,num_srch_cells_loc),
+     &          srch_center_lat_loc(num_srch_cells_loc),
+     &          srch_center_lon_loc(num_srch_cells_loc))
 
-               n = 0
-               do grid1_add = min_add,max_add
-                  if (srch_mask(grid1_add)) then
-                     n = n+1
-                     srch_add_loc(n) = grid1_add
-                     srch_corner_lat_loc(:,n) = 
-     &                    grid1_corner_lat(:,grid1_add)
-                     srch_corner_lon_loc(:,n) = 
-     &                    grid1_corner_lon(:,grid1_add)
-                     srch_center_lat_loc(n) = 
-     &                    grid1_center_lat(grid1_add)
-                     srch_center_lon_loc(n) = 
-     &                    grid1_center_lon(grid1_add)
-                  endif
-               end do
+             n = 0
+             do grid1_add = min_add,max_add
+               if (srch_mask(grid1_add)) then
+                 n = n+1
+                 srch_add_loc(n) = grid1_add
+                 srch_corner_lat_loc(:,n) = 
+     &                grid1_corner_lat(:,grid1_add)
+                 srch_corner_lon_loc(:,n) = 
+     &                grid1_corner_lon(:,grid1_add)
+                 srch_center_lat_loc(n) = 
+     &                grid1_center_lat(grid1_add)
+                 srch_center_lon_loc(n) = 
+     &                grid1_center_lon(grid1_add)
+               endif
+             end do
+             if (n .ne. num_srch_cells_loc) write(6,*) 'error 11n'
 
-               srch_corners_loc = grid1_corners
+             srch_corners_loc = grid1_corners
+             deallocate(srch_mask)
 
-               deallocate(srch_mask)
+!             call timer_stop(22)
 
-            else
+           else  ! srch_grid_num
             
-               !*** Grid 2 neighbors of grid 1 cell
+!             call timer_start(23,'srch12a')
 
-               allocate(srch_mask(grid2_size))
+             !*** Grid 2 neighbors of grid 1 cell
 
-               min_add = grid2_size
-               max_add = 1
-               do n=1,num_srch_bins
-                  if (cell_add >= bin_addr1(1,n) .and.
-     &                 cell_add <= bin_addr1(2,n)) then
-                     min_add = min(min_add, bin_addr2(1,n))
-                     max_add = max(max_add, bin_addr2(2,n))
-                  endif
-               end do
+             allocate(srch_mask(grid2_size))
+             srch_mask = .false.
 
-               !***
-               !*** further restrict searches using bounding boxes
-               !***
-
-               num_srch_cells_loc = 0
-               do grid2_add = min_add,max_add
-                  srch_mask(grid2_add) = 
+             min_add = grid2_size
+             max_add = 1
+             num_srch_cells_loc = 0
+             do n = 1, num_srch_bins
+               if (grid1_bound_box(1,cell_add) <= bin_lats2(2,n) .and.
+     &             grid1_bound_box(2,cell_add) >= bin_lats2(1,n) .and.
+     &             grid1_bound_box(3,cell_add) <= bin_lons2(2,n) .and.
+     &             grid1_bound_box(4,cell_add) >= bin_lons2(1,n)) then
+                 do addr = bin_addr2(1,n),bin_addr2(2,n)
+                   grid2_add = bin_sort2(addr)
+                   srch_mask(grid2_add) = 
      &                 (grid2_bound_box(1,grid2_add) <= 
-     &                 grid1_bound_box(2,cell_add)) .and.
+     &                  grid1_bound_box(2,cell_add)) .and.
      &                 (grid2_bound_box(2,grid2_add) >= 
-     &                 grid1_bound_box(1,cell_add)) .and.
+     &                  grid1_bound_box(1,cell_add)) .and.
      &                 (grid2_bound_box(3,grid2_add) <= 
-     &                 grid1_bound_box(4,cell_add)) .and.
+     &                  grid1_bound_box(4,cell_add)) .and.
      &                 (grid2_bound_box(4,grid2_add) >= 
-     &                 grid1_bound_box(3,cell_add))
-
-
+     &                  grid1_bound_box(3,cell_add))
                   
-                  if (srch_mask(grid2_add)) 
-     &                 num_srch_cells_loc = num_srch_cells_loc+1
-               end do
+                   if (srch_mask(grid2_add)) then
+                     num_srch_cells_loc = num_srch_cells_loc+1
+                     min_add = min(min_add,grid2_add)
+                     max_add = max(max_add,grid2_add)
+                   endif
+                 end do
+               endif
+             end do
 
-               !***
-               !*** create search arrays
-               !***
+!             call timer_stop(23)
+!             call timer_start(24,'srch12b')
 
-               allocate(srch_add_loc(num_srch_cells_loc),
-     &           srch_corner_lat_loc(grid2_corners,num_srch_cells_loc),
-     &           srch_corner_lon_loc(grid2_corners,num_srch_cells_loc),
-     &           srch_center_lat_loc(num_srch_cells_loc),
-     &           srch_center_lon_loc(num_srch_cells_loc))
+             allocate(srch_add_loc(num_srch_cells_loc),
+     &          srch_corner_lat_loc(grid2_corners,num_srch_cells_loc),
+     &          srch_corner_lon_loc(grid2_corners,num_srch_cells_loc),
+     &          srch_center_lat_loc(num_srch_cells_loc),
+     &          srch_center_lon_loc(num_srch_cells_loc))
 
-               n = 0
-               do grid2_add = min_add,max_add
-                  if (srch_mask(grid2_add)) then
-                     n = n+1
-                     srch_add_loc(n) = grid2_add
-                     srch_corner_lat_loc(:,n) = 
-     &                    grid2_corner_lat(:,grid2_add)
-                     srch_corner_lon_loc(:,n) = 
-     &                    grid2_corner_lon(:,grid2_add)
-                     srch_center_lat_loc(n) = 
-     &                    grid2_center_lat(grid2_add)
-                     srch_center_lon_loc(n) = 
-     &                    grid2_center_lon(grid2_add)
-                  endif
-               end do
-               
-               srch_corners_loc = grid2_corners
+             n = 0
+             do grid2_add = min_add,max_add
+               if (srch_mask(grid2_add)) then
+                 n = n+1
+                 srch_add_loc(n) = grid2_add
+                 srch_corner_lat_loc(:,n) = 
+     &                grid2_corner_lat(:,grid2_add)
+                 srch_corner_lon_loc(:,n) = 
+     &                grid2_corner_lon(:,grid2_add)
+                 srch_center_lat_loc(n) = 
+     &                grid2_center_lat(grid2_add)
+                 srch_center_lon_loc(n) = 
+     &                grid2_center_lon(grid2_add)
+               endif
+             end do
+             if (n .ne. num_srch_cells_loc) write(6,*) 'error 12n'
 
-               deallocate(srch_mask)
+             srch_corners_loc = grid2_corners
+             deallocate(srch_mask)
 
-            endif
+!             call timer_stop(24)
 
-         else
+           endif
 
-            if (srch_grid_num == 1) then
+         else  ! cell_grid_num
 
-               !*** Grid 1 neighbors of grid 2 cell
+           if (srch_grid_num == 1) then
 
-               allocate(srch_mask(grid1_size))
+!             call timer_start(25,'srch21a')
 
-               min_add = grid1_size
-               max_add = 1
-               do n=1,num_srch_bins
-                  if (cell_add >= bin_addr2(1,n) .and.
-     &                 cell_add <= bin_addr2(2,n)) then
-                     min_add = min(min_add, bin_addr1(1,n))
-                     max_add = max(max_add, bin_addr1(2,n))
-                  endif
-               end do
+             !*** Grid 1 neighbors of grid 2 cell
 
-              !***
-              !*** further restrict searches using bounding boxes
-              !***
+             allocate(srch_mask(grid1_size))
+             srch_mask = .false.
 
-               num_srch_cells_loc = 0
-               do grid1_add = min_add,max_add
-                  srch_mask(grid1_add) = 
+             min_add = grid1_size
+             max_add = 1
+             num_srch_cells_loc = 0
+             do n = 1, num_srch_bins
+               if (grid2_bound_box(1,cell_add) <= bin_lats1(2,n) .and.
+     &             grid2_bound_box(2,cell_add) >= bin_lats1(1,n) .and.
+     &             grid2_bound_box(3,cell_add) <= bin_lons1(2,n) .and.
+     &             grid2_bound_box(4,cell_add) >= bin_lons1(1,n)) then
+                 do addr = bin_addr1(1,n),bin_addr1(2,n)
+                   grid1_add = bin_sort1(addr)
+                   srch_mask(grid1_add) = 
      &                 (grid1_bound_box(1,grid1_add) <= 
-     &                 grid2_bound_box(2,cell_add)) .and.
+     &                  grid2_bound_box(2,cell_add)) .and.
      &                 (grid1_bound_box(2,grid1_add) >= 
-     &                 grid2_bound_box(1,cell_add)) .and.
+     &                  grid2_bound_box(1,cell_add)) .and.
      &                 (grid1_bound_box(3,grid1_add) <= 
-     &                 grid2_bound_box(4,cell_add)) .and.
+     &                  grid2_bound_box(4,cell_add)) .and.
      &                 (grid1_bound_box(4,grid1_add) >= 
-     &                 grid2_bound_box(3,cell_add))
+     &                  grid2_bound_box(3,cell_add))
+                  
+                   if (srch_mask(grid1_add)) then
+                     num_srch_cells_loc = num_srch_cells_loc+1
+                     min_add = min(min_add,grid1_add)
+                     max_add = max(max_add,grid1_add)
+                   endif
+                 end do
+               endif
+             end do
 
-                  if (srch_mask(grid1_add)) 
-     &                 num_srch_cells_loc = num_srch_cells_loc+1
-               end do
+!             call timer_stop(25)
+!             call timer_start(26,'srch21b')
 
-               !***
-               !*** create search arrays
-               !***
+             allocate(srch_add_loc(num_srch_cells_loc),
+     &          srch_corner_lat_loc(grid1_corners,num_srch_cells_loc),
+     &          srch_corner_lon_loc(grid1_corners,num_srch_cells_loc),
+     &          srch_center_lat_loc(num_srch_cells_loc),
+     &          srch_center_lon_loc(num_srch_cells_loc))
 
-               allocate(srch_add_loc(num_srch_cells_loc),
-     &           srch_corner_lat_loc(grid1_corners,num_srch_cells_loc),
-     &           srch_corner_lon_loc(grid1_corners,num_srch_cells_loc),
-     &           srch_center_lat_loc(num_srch_cells_loc),
-     &           srch_center_lon_loc(num_srch_cells_loc))
+             n = 0
+             do grid1_add = min_add,max_add
+               if (srch_mask(grid1_add)) then
+                 n = n+1
+                 srch_add_loc(n) = grid1_add
+                 srch_corner_lat_loc(:,n) = 
+     &                grid1_corner_lat(:,grid1_add)
+                 srch_corner_lon_loc(:,n) = 
+     &                grid1_corner_lon(:,grid1_add)
+                 srch_center_lat_loc(n) = 
+     &                grid1_center_lat(grid1_add)
+                 srch_center_lon_loc(n) = 
+     &                grid1_center_lon(grid1_add)
+               endif
+             end do
+             if (n .ne. num_srch_cells_loc) write(6,*) 'error 21n'
 
-               n = 0
-               do grid1_add = min_add,max_add
-                  if (srch_mask(grid1_add)) then
-                     n = n+1
-                     srch_add_loc(n) = grid1_add
-                     srch_corner_lat_loc(:,n) = 
-     &                    grid1_corner_lat(:,grid1_add)
-                     srch_corner_lon_loc(:,n) = 
-     &                    grid1_corner_lon(:,grid1_add)
-                     srch_center_lat_loc(n) = 
-     &                    grid1_center_lat(grid1_add)
-                     srch_center_lon_loc(n) = 
-     &                    grid1_center_lon(grid1_add)
-                  endif
-               end do
+             srch_corners_loc = grid1_corners
+             deallocate(srch_mask)
 
-               srch_corners_loc = grid1_corners
+!             call timer_stop(26)
 
-               deallocate(srch_mask)
+           else  ! src_grid_num
 
-            else
+!             call timer_start(27,'srch22a')
 
-               !*** Grid 2 neighbors of grid 2 cell
+             !*** Grid 2 neighbors of grid 2 cell
 
-               allocate(srch_mask(grid2_size))
+             allocate(srch_mask(grid2_size))
+             srch_mask = .false.
 
-               min_add = grid2_size
-               max_add = 1
-               do n=1,num_srch_bins
-                  if (cell_add >= bin_addr2(1,n) .and.
-     &                 cell_add <= bin_addr2(2,n)) then
-                     min_add = min(min_add, bin_addr2(1,n))
-                     max_add = max(max_add, bin_addr2(2,n))
-                  endif
-               end do
-
-               !***
-               !*** further restrict searches using bounding boxes
-               !***
-
-               num_srch_cells_loc = 0
-               do grid2_add = min_add,max_add
-                  srch_mask(grid2_add) = 
+             min_add = grid2_size
+             max_add = 1
+             num_srch_cells_loc = 0
+             do n = 1, num_srch_bins
+               if (grid2_bound_box(1,cell_add) <= bin_lats2(2,n) .and.
+     &             grid2_bound_box(2,cell_add) >= bin_lats2(1,n) .and.
+     &             grid2_bound_box(3,cell_add) <= bin_lons2(2,n) .and.
+     &             grid2_bound_box(4,cell_add) >= bin_lons2(1,n)) then
+                 do addr = bin_addr2(1,n),bin_addr2(2,n)
+                   grid2_add = bin_sort2(addr)
+                   srch_mask(grid2_add) = 
      &                 (grid2_bound_box(1,grid2_add) <= 
-     &                 grid2_bound_box(2,cell_add)) .and.
+     &                  grid2_bound_box(2,cell_add)) .and.
      &                 (grid2_bound_box(2,grid2_add) >= 
-     &                 grid2_bound_box(1,cell_add)) .and.
+     &                  grid2_bound_box(1,cell_add)) .and.
      &                 (grid2_bound_box(3,grid2_add) <= 
-     &                 grid2_bound_box(4,cell_add)) .and.
+     &                  grid2_bound_box(4,cell_add)) .and.
      &                 (grid2_bound_box(4,grid2_add) >= 
-     &                 grid2_bound_box(3,cell_add))
+     &                  grid2_bound_box(3,cell_add))
+                  
+                   if (srch_mask(grid2_add)) then
+                     num_srch_cells_loc = num_srch_cells_loc+1
+                     min_add = min(min_add,grid2_add)
+                     max_add = max(max_add,grid2_add)
+                   endif
+                 end do
+               endif
+             end do
 
-                  if (srch_mask(grid2_add)) 
-     &                 num_srch_cells_loc = num_srch_cells_loc+1
-               end do
-               
-               !***
-               !*** create search arrays
-               !***
+!             call timer_stop(27)
+!             call timer_start(28,'srch22b')
 
-               allocate(srch_add_loc(num_srch_cells_loc),
-     &           srch_corner_lat_loc(grid2_corners,num_srch_cells_loc),
-     &           srch_corner_lon_loc(grid2_corners,num_srch_cells_loc),
-     &           srch_center_lat_loc(num_srch_cells_loc),
-     &           srch_center_lon_loc(num_srch_cells_loc))
+             allocate(srch_add_loc(num_srch_cells_loc),
+     &          srch_corner_lat_loc(grid2_corners,num_srch_cells_loc),
+     &          srch_corner_lon_loc(grid2_corners,num_srch_cells_loc),
+     &          srch_center_lat_loc(num_srch_cells_loc),
+     &          srch_center_lon_loc(num_srch_cells_loc))
 
-               n = 0
-               do grid2_add = min_add,max_add
-                  if (srch_mask(grid2_add)) then
-                     n = n+1
-                     srch_add_loc(n) = grid2_add
-                     srch_corner_lat_loc(:,n) = 
-     &                    grid2_corner_lat(:,grid2_add)
-                     srch_corner_lon_loc(:,n) = 
-     &                    grid2_corner_lon(:,grid2_add)
-                     srch_center_lat_loc(n) = 
-     &                    grid2_center_lat(grid2_add)
-                     srch_center_lon_loc(n) = 
-     &                    grid2_center_lon(grid2_add)
-                  endif
-               end do
+             n = 0
+             do grid2_add = min_add,max_add
+               if (srch_mask(grid2_add)) then
+                 n = n+1
+                 srch_add_loc(n) = grid2_add
+                 srch_corner_lat_loc(:,n) = 
+     &                grid2_corner_lat(:,grid2_add)
+                 srch_corner_lon_loc(:,n) = 
+     &                grid2_corner_lon(:,grid2_add)
+                 srch_center_lat_loc(n) = 
+     &                grid2_center_lat(grid2_add)
+                 srch_center_lon_loc(n) = 
+     &                grid2_center_lon(grid2_add)
+               endif
+             end do
+             if (n .ne. num_srch_cells_loc) write(6,*) 'error 22n'
 
-               srch_corners_loc = grid2_corners
+             srch_corners_loc = grid2_corners
+             deallocate(srch_mask)
 
-               deallocate(srch_mask)
+!             call timer_stop(28)
 
-            endif
+           endif
 
          endif
 
@@ -5361,7 +5387,8 @@ C$OMP& srch_center_lon_loc)
       num_srch_cells = num_srch_cells_loc
 
       if (num_srch_cells .eq. 0) then
-         deallocate(srch_add_loc,srch_corner_lat_loc,
+         if (allocated(srch_add_loc))
+     &      deallocate(srch_add_loc,srch_corner_lat_loc,
      &        srch_corner_lon_loc,srch_center_lat_loc,
      &        srch_center_lon_loc)
          return
@@ -5378,6 +5405,8 @@ C$OMP& srch_center_lon_loc)
       srch_corner_lon = srch_corner_lon_loc
       srch_center_lat = srch_center_lat_loc
       srch_center_lon = srch_center_lon_loc
+
+!      call timer_stop(5)
 
       end subroutine get_srch_cells
 !**********************************************************************

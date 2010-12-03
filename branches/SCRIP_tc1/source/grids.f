@@ -44,6 +44,7 @@
       use constants    ! common constants
       use SCRIP_NetcdfMod   ! netCDF stuff
       use netcdf            ! netCDF library module
+      use timers
 
       implicit none
 
@@ -119,6 +120,12 @@
      &     grid1_spole_cell,         
      &     grid2_npole_cell,
      &     grid2_spole_cell
+
+      logical (SCRIP_logical), save ::   ! grid wrap around
+     &     grid1_iwrap,
+     &     grid1_jwrap,
+     &     grid2_iwrap,
+     &     grid2_jwrap
       
 
 !-----------------------------------------------------------------------
@@ -137,9 +144,23 @@
      &        bin_addr1, ! min,max adds for grid1 cells in this lat bin
      &        bin_addr2  ! min,max adds for grid2 cells in this lat bin
 
+      integer (SCRIP_i4), dimension(:), allocatable, save ::
+     &        bin_sort1, ! global indexes sorted into bin friendly
+     &        bin_sort2  ! order for grid1 and grid2
+
       real(SCRIP_r8), dimension(:,:), allocatable, save ::
-     &        bin_lats   ! min,max latitude for each search bin
-     &,       bin_lons   ! min,max longitude for each search bin
+     &        bin_lats1   ! min,max latitude for each search bin grid1
+     &,       bin_lons1   ! min,max longitude for each search bin grid1
+     &,       bin_lats2   ! min,max latitude for each search bin grid2
+     &,       bin_lons2   ! min,max longitude for each search bin grid2
+
+      integer (SCRIP_i4) ::
+     &        bin_max   ! current max size of bin_list
+      integer (SCRIP_i4), dimension(:), allocatable ::
+     &        bin_cnt   ! number of cells in each bin
+      integer (SCRIP_i4), dimension(:,:), allocatable ::
+     &        bin_list, ! list of cells for each bin
+     &        bin_listhold ! temporary to increase bin_list size
 
 !-----------------------------------------------------------------------
 !
@@ -199,17 +220,17 @@
 !-----------------------------------------------------------------------
 
       integer (SCRIP_i4) :: 
-     &  n      ! loop counter
+     &  n,np      ! loop counter
      &, nele   ! element loop counter
      &, i,j,k
      &, ip1,jp1
      &, n_add, e_add, ne_add
-     &, nx, ny
+     &, nx, ny, n1, n2
 
       integer (SCRIP_i4) ::
      &     zero_crossing, pi_crossing,
      &     grid1_add, grid2_add,
-     &     corner, next_corn
+     &     corner, next_corn, progint
      
       real (SCRIP_r8) ::
      &     beglon, endlon, endlat
@@ -249,11 +270,20 @@
       real (SCRIP_r8) :: 
      &  dlat,dlon           ! lat/lon intervals for search bins
 
+      real (SCRIP_r8) :: 
+     &  minlon,maxlon,minlat,maxlat   ! lat/lon bin extents
+
       real (SCRIP_r8), dimension(4) ::
      &  tmp_lats, tmp_lons  ! temps for computing bounding boxes
 
       character (9), parameter ::
      &   rtnName = 'grid_init'
+
+      real (SCRIP_r8), parameter :: 
+     &   eps = 1.0e-06
+
+      integer (SCRIP_i4) ::
+     &        num_srch_binsx, num_srch_binsy  ! num of bins in lon/lat
 
 !-----------------------------------------------------------------------
 !
@@ -700,6 +730,78 @@
 
 !-----------------------------------------------------------------------
 !
+!    Check for grid wrap-arounds
+!    Default is true (for backwards compatability)
+!
+!-----------------------------------------------------------------------
+
+      grid1_iwrap = .true.
+      grid1_jwrap = .true.
+      grid2_iwrap = .true.
+      grid2_jwrap = .true.
+
+      if (grid1_corners == 4) then
+        nx = grid1_dims(1)
+        ny = grid1_dims(2)
+        do j = 1,ny
+          n1 = (j-1)*nx + 1
+          n2 = (j-1)*nx + nx
+          if (abs(grid1_corner_lat(4,n1)-
+     &            grid1_corner_lat(3,n2)) > eps .or.
+     &        abs(mod(grid1_corner_lon(4,n1)+pi2,pi2)-
+     &            mod(grid1_corner_lon(3,n2)+pi2,pi2)) > eps) then
+!            print*, 'grid1_iwrap ',
+!     &        grid1_corner_lon(4,n1),grid1_corner_lon(3,n2),
+!     &        grid1_corner_lat(4,n1),grid1_corner_lat(3,n2)
+            grid1_iwrap = .false.
+          endif
+        enddo
+        do i = 1,nx
+          n1 = i
+          n2 = (ny-1)*nx + i
+          if (abs(grid1_corner_lat(2,n1)-
+     &            grid1_corner_lat(3,n2)) > eps .or.
+     &        abs(mod(grid1_corner_lon(2,n1)+pi2,pi2)-
+     &            mod(grid1_corner_lon(3,n2)+pi2,pi2)) > eps) then
+!            print*, 'grid1_jwrap ',
+!     &        grid1_corner_lon(2,n1),grid1_corner_lon(3,n2),
+!     &        grid1_corner_lat(2,n1),grid1_corner_lat(3,n2)
+            grid1_jwrap = .false.
+          endif
+        enddo
+
+        nx = grid2_dims(1)
+        ny = grid2_dims(2)
+        do j = 1,ny
+          n1 = (j-1)*nx + 1
+          n2 = (j-1)*nx + nx
+          if (abs(grid2_corner_lat(4,n1)-
+     &            grid2_corner_lat(3,n2)) > eps .or.
+     &        abs(mod(grid2_corner_lon(4,n1)+pi2,pi2)-
+     &            mod(grid2_corner_lon(3,n2)+pi2,pi2)) > eps) then
+!            print*, 'grid2_iwrap ',
+!     &        grid2_corner_lon(4,n1),grid2_corner_lon(3,n2),
+!     &        grid2_corner_lat(4,n1),grid2_corner_lat(3,n2)
+            grid2_iwrap = .false.
+          endif
+        enddo
+        do i = 1,nx
+          n1 = i
+          n2 = (ny-1)*nx + i
+          if (abs(grid2_corner_lat(2,n1)-
+     &            grid2_corner_lat(3,n2)) > eps .or.
+     &        abs(mod(grid2_corner_lon(2,n1)+pi2,pi2)-
+     &            mod(grid2_corner_lon(3,n2)+pi2,pi2)) > eps) then
+!            print*, 'grid2_jwrap ',
+!     &        grid2_corner_lon(2,n1),grid2_corner_lon(3,n2),
+!     &        grid2_corner_lat(2,n1),grid2_corner_lat(3,n2)
+            grid2_jwrap = .false.
+          endif
+        enddo
+      endif
+
+!-----------------------------------------------------------------------
+!
 !     compute bounding boxes for restricting future grid searches
 !
 !-----------------------------------------------------------------------
@@ -730,12 +832,9 @@
           if (i < nx) then
             ip1 = i + 1
           else
-            !*** assume cyclic
-            ip1 = 1
-            !*** but if it is not, correct
-            e_add = (j - 1)*nx + ip1
-            if (abs(grid1_center_lat(e_add) - 
-     &              grid1_center_lat(n   )) > pih) then
+            if (grid1_iwrap) then
+              ip1 = 1
+            else
               ip1 = i
             endif
           endif
@@ -743,12 +842,9 @@
           if (j < ny) then
             jp1 = j+1
           else
-            !*** assume cyclic
-            jp1 = 1
-            !*** but if it is not, correct
-            n_add = (jp1 - 1)*nx + i
-            if (abs(grid1_center_lat(n_add) - 
-     &              grid1_center_lat(n   )) > pih) then
+            if (grid1_jwrap) then
+              jp1 = 1
+            else
               jp1 = j
             endif
           endif
@@ -788,12 +884,9 @@
           if (i < nx) then
             ip1 = i + 1
           else
-            !*** assume cyclic
-            ip1 = 1
-            !*** but if it is not, correct
-            e_add = (j - 1)*nx + ip1
-            if (abs(grid2_center_lat(e_add) - 
-     &              grid2_center_lat(n   )) > pih) then
+            if (grid2_iwrap) then
+              ip1 = 1
+            else
               ip1 = i
             endif
           endif
@@ -801,12 +894,9 @@
           if (j < ny) then
             jp1 = j+1
           else
-            !*** assume cyclic
-            jp1 = 1
-            !*** but if it is not, correct
-            n_add = (jp1 - 1)*nx + i
-            if (abs(grid2_center_lat(n_add) - 
-     &              grid2_center_lat(n   )) > pih) then
+            if (grid2_jwrap) then
+              jp1 = 1
+            else
               jp1 = j
             endif
           endif
@@ -984,8 +1074,10 @@
 
 
       print *, ' '
-      print *, 'Grid 1 size', grid1_size
-      print *, 'Grid 2 size', grid2_size
+      print *, 'Grid 1 size', grid1_dims,grid1_size
+      print *, 'Grid 1 wrap', grid1_iwrap,grid1_jwrap
+      print *, 'Grid 2 size', grid2_dims,grid2_size
+      print *, 'Grid 2 wrap', grid2_iwrap,grid2_jwrap
 
 
       print *, 'grid1_npole_cell',grid1_npole_cell
@@ -1026,105 +1118,326 @@
 !
 !-----------------------------------------------------------------------
 
+      call timer_start(11,'bin_init')
+
       select case (restrict_type)
 
       case ('latitude')
         write(SCRIP_stdout,*) 'Using latitude bins to restrict search.'
 
-        allocate(bin_addr1(2,num_srch_bins))
-        allocate(bin_addr2(2,num_srch_bins))
-        allocate(bin_lats (2,num_srch_bins))
-        allocate(bin_lons (2,num_srch_bins))
+        num_srch_binsx = 1
+        num_srch_binsy = num_srch_bins
 
-        dlat = pi/num_srch_bins
+      case ('longitude')
+        write(SCRIP_stdout,*) 'Using longitude bins to restrict search.'
 
-        do n=1,num_srch_bins
-          bin_lats(1,n) = (n-1)*dlat - pih
-          bin_lats(2,n) =     n*dlat - pih
-          bin_lons(1,n) = zero
-          bin_lons(2,n) = pi2
-          bin_addr1(1,n) = grid1_size + 1
-          bin_addr1(2,n) = 0
-          bin_addr2(1,n) = grid2_size + 1
-          bin_addr2(2,n) = 0
-        end do
-
-        do nele=1,grid1_size
-          do n=1,num_srch_bins
-            if (grid1_bound_box(1,nele) <= bin_lats(2,n) .and.
-     &          grid1_bound_box(2,nele) >= bin_lats(1,n)) then
-              bin_addr1(1,n) = min(nele,bin_addr1(1,n))
-              bin_addr1(2,n) = max(nele,bin_addr1(2,n))
-            endif
-          end do
-        end do
-
-        do nele=1,grid2_size
-          do n=1,num_srch_bins
-            if (grid2_bound_box(1,nele) <= bin_lats(2,n) .and.
-     &          grid2_bound_box(2,nele) >= bin_lats(1,n)) then
-              bin_addr2(1,n) = min(nele,bin_addr2(1,n))
-              bin_addr2(2,n) = max(nele,bin_addr2(2,n))
-            endif
-          end do
-        end do
+        num_srch_binsx = num_srch_bins
+        num_srch_binsy = 1
 
       case ('latlon')
         write(SCRIP_stdout,*) 'Using lat/lon boxes to restrict search.'
-
-        dlat = pi /num_srch_bins
-        dlon = pi2/num_srch_bins
-
-        allocate(bin_addr1(2,num_srch_bins*num_srch_bins))
-        allocate(bin_addr2(2,num_srch_bins*num_srch_bins))
-        allocate(bin_lats (2,num_srch_bins*num_srch_bins))
-        allocate(bin_lons (2,num_srch_bins*num_srch_bins))
-
-        n = 0
-        do j=1,num_srch_bins
-        do i=1,num_srch_bins
-          n = n + 1
-
-          bin_lats(1,n) = (j-1)*dlat - pih
-          bin_lats(2,n) =     j*dlat - pih
-          bin_lons(1,n) = (i-1)*dlon
-          bin_lons(2,n) =     i*dlon
-          bin_addr1(1,n) = grid1_size + 1
-          bin_addr1(2,n) = 0
-          bin_addr2(1,n) = grid2_size + 1
-          bin_addr2(2,n) = 0
-        end do
-        end do
-
-        num_srch_bins = num_srch_bins**2
-
-        do nele=1,grid1_size
-          do n=1,num_srch_bins
-            if (grid1_bound_box(1,nele) <= bin_lats(2,n) .and.
-     &          grid1_bound_box(2,nele) >= bin_lats(1,n) .and.
-     &          grid1_bound_box(3,nele) <= bin_lons(2,n) .and.
-     &          grid1_bound_box(4,nele) >= bin_lons(1,n)) then
-              bin_addr1(1,n) = min(nele,bin_addr1(1,n))
-              bin_addr1(2,n) = max(nele,bin_addr1(2,n))
-            endif
-          end do
-        end do
-
-        do nele=1,grid2_size
-          do n=1,num_srch_bins
-            if (grid2_bound_box(1,nele) <= bin_lats(2,n) .and.
-     &          grid2_bound_box(2,nele) >= bin_lats(1,n) .and.
-     &          grid2_bound_box(3,nele) <= bin_lons(2,n) .and.
-     &          grid2_bound_box(4,nele) >= bin_lons(1,n)) then
-              bin_addr2(1,n) = min(nele,bin_addr2(1,n))
-              bin_addr2(2,n) = max(nele,bin_addr2(2,n))
-            endif
-          end do
-        end do
+        num_srch_binsx = num_srch_bins
+        num_srch_binsy = num_srch_bins
 
       case default
         stop 'unknown search restriction method'
       end select
+
+
+      ! reset num_srch_bins to total
+      num_srch_bins = num_srch_binsx*num_srch_binsy
+
+      minlat = min(minval(grid1_bound_box(1,:)),
+     &             minval(grid2_bound_box(1,:)))
+      maxlat = max(maxval(grid1_bound_box(2,:)),
+     &             maxval(grid2_bound_box(2,:)))
+      minlon = min(minval(grid1_bound_box(3,:)),
+     &             minval(grid2_bound_box(3,:)))
+      maxlon = max(maxval(grid1_bound_box(4,:)),
+     &             maxval(grid2_bound_box(4,:)))
+
+      minlon = max(zero,minlon-eps)
+      maxlon = min(pi2,maxlon+eps)
+      minlat = max(-pih,minlat-eps)
+      maxlat = min(pih,maxlat+eps)
+
+      dlon = (maxlon-minlon)/num_srch_binsx
+      dlat = (maxlat-minlat)/num_srch_binsy
+
+      write(6,*) 'bins min max d lon ',minlon,maxlon,dlon
+      write(6,*) 'bins min max d lat ',minlat,maxlat,dlat
+
+      allocate(bin_lats1(2,num_srch_bins))
+      allocate(bin_lons1(2,num_srch_bins))
+      allocate(bin_lats2(2,num_srch_bins))
+      allocate(bin_lons2(2,num_srch_bins))
+      allocate(bin_addr1(2,num_srch_bins))
+      allocate(bin_addr2(2,num_srch_bins))
+      allocate(bin_sort1(grid1_size))
+      allocate(bin_sort2(grid2_size))
+
+      n = 0
+      do j=1,num_srch_binsy
+      do i=1,num_srch_binsx
+        n = n + 1
+        bin_lats1(1,n) = (j-1)*dlat + minlat
+        bin_lats1(2,n) =     j*dlat + minlat
+        bin_lons1(1,n) = (i-1)*dlon + minlon
+        bin_lons1(2,n) =     i*dlon + minlon
+      end do
+      end do
+
+      ! for now, initialize bin_lonlat2 = bin_lonlat1
+      bin_lats2 = bin_lats1
+      bin_lons2 = bin_lons1
+
+!      write(6,*) ' '
+!      do n = 1,num_srch_bins
+!         write(6,*) 'bin_lonlat1i ',n,bin_lons1(1,n),bin_lons1(2,n),
+!     &        bin_lats1(1,n),bin_lats1(2,n)
+!      enddo
+!      write(6,*) ' '
+!      do n = 1,num_srch_bins
+!         write(6,*) 'bin_lonlat2i ',n,bin_lons2(1,n),bin_lons2(2,n),
+!     &        bin_lats2(1,n),bin_lats2(2,n)
+!      enddo
+
+      bin_addr1(1,:) = 1
+      bin_addr1(2,:) = 0
+      bin_addr2(1,:) = 1
+      bin_addr2(2,:) = 0
+      bin_sort1 = 0
+      bin_sort2 = 0
+
+      if (grid1_size > 1000000) then
+        progint = 100000
+      else
+        progint = 10000
+      endif
+
+      bin_max = 1.2*grid1_size/num_srch_bins + 1
+      write(6,*) 'bin_max grid1 ',num_srch_bins,grid1_size,bin_max
+      allocate(bin_cnt(num_srch_bins))
+      allocate(bin_list(bin_max,num_srch_bins))
+      bin_cnt = 0
+      bin_list = 0
+
+      do nele=1,grid1_size
+        if (mod(nele,progint) .eq. 0) then
+          print *, nele, ' grid1 cells bin sorted ...'
+        endif
+        n = 0  ! num_srch_bins
+        found = .false.
+        do while (.not.found .and. n < num_srch_bins)
+          n = n + 1
+          if (grid1_center_lat(nele) <= bin_lats1(2,n) .and.
+     &        grid1_center_lat(nele) >= bin_lats1(1,n) .and.
+     &        grid1_center_lon(nele) <= bin_lons1(2,n) .and.
+     &        grid1_center_lon(nele) >= bin_lons1(1,n)) then
+
+            found = .true.
+
+            bin_cnt(n) = bin_cnt(n) + 1
+
+            if (bin_cnt(n) > bin_max) then
+               allocate(bin_listhold(bin_max,num_srch_bins))
+               do j = 1,num_srch_bins
+               do i = 1,bin_cnt(j)
+                  bin_listhold(i,j) = bin_list(i,j)
+               enddo
+               enddo
+               deallocate(bin_list)
+               bin_max = 1.5*bin_max + 1
+               write(6,*) 'increasing bin_max grid1 to ',bin_max
+               allocate(bin_list(bin_max,num_srch_bins))
+               bin_list = 0
+               do j = 1,num_srch_bins
+               do i = 1,bin_cnt(j)
+                  bin_list(i,j) = bin_listhold(i,j)
+               enddo
+               enddo
+               deallocate(bin_listhold)
+            endif
+
+            bin_list(bin_cnt(n),n) = nele
+
+          endif
+        end do
+        if (.not.found) then
+          write(6,*) 'ERROR bin_sort1 ',nele,grid1_center_lon(nele),
+     &               grid1_center_lat(nele)
+          stop
+        endif
+      end do   ! nele
+
+      n = 0
+      do j = 1,num_srch_bins
+         if (j == 1) then
+            bin_addr1(1,j) = 1
+         else
+            bin_addr1(1,j) = bin_addr1(2,j-1) + 1
+         endif
+         bin_addr1(2,j) = bin_addr1(1,j) + bin_cnt(j) - 1
+         do i = 1,bin_cnt(j)
+            n = n + 1
+            bin_sort1(n) = bin_list(i,j)
+         enddo
+      enddo
+      if (n .ne. grid1_size .or. 
+     &   bin_addr1(2,num_srch_bins) .ne. grid1_size) then
+         write(6,*) 'ERROR in size1 ',grid1_size,n,
+     &      bin_addr1(2,num_srch_bins)
+         stop
+      endif
+      deallocate(bin_list)
+      deallocate(bin_cnt)
+      
+      bin_max = 1.2*grid2_size/num_srch_bins + 1
+      write(6,*) 'bin_max grid2 ',num_srch_bins,grid2_size,bin_max
+      allocate(bin_cnt(num_srch_bins))
+      allocate(bin_list(bin_max,num_srch_bins))
+      bin_cnt = 0
+      bin_list = 0
+
+      if (grid2_size > 1000000) then
+        progint = 100000
+      else
+        progint = 10000
+      endif
+
+      do nele=1,grid2_size
+        if (mod(nele,progint) .eq. 0) then
+          print *, nele, ' grid2 cells bin sorted ...'
+        endif
+        n = 0  ! num_srch_bins
+        found = .false.
+        do while (.not.found .and. n < num_srch_bins)
+          n = n + 1
+          if (grid2_center_lat(nele) <= bin_lats2(2,n) .and.
+     &        grid2_center_lat(nele) >= bin_lats2(1,n) .and.
+     &        grid2_center_lon(nele) <= bin_lons2(2,n) .and.
+     &        grid2_center_lon(nele) >= bin_lons2(1,n)) then
+
+            found = .true.
+
+            bin_cnt(n) = bin_cnt(n) + 1
+
+            if (bin_cnt(n) > bin_max) then
+               allocate(bin_listhold(bin_max,num_srch_bins))
+               do j = 1,num_srch_bins
+               do i = 1,bin_cnt(j)
+                  bin_listhold(i,j) = bin_list(i,j)
+               enddo
+               enddo
+               deallocate(bin_list)
+               bin_max = 1.5*bin_max + 1
+               write(6,*) 'increasing bin_max grid2 to ',bin_max
+               allocate(bin_list(bin_max,num_srch_bins))
+               bin_list = 0
+               do j = 1,num_srch_bins
+               do i = 1,bin_cnt(j)
+                  bin_list(i,j) = bin_listhold(i,j)
+               enddo
+               enddo
+               deallocate(bin_listhold)
+            endif
+
+            bin_list(bin_cnt(n),n) = nele
+
+          endif
+        end do
+        if (.not.found) then
+          write(6,*) 'ERROR bin_sort2 ',nele,grid2_center_lon(nele),
+     &               grid2_center_lat(nele)
+          stop
+        endif
+      end do   ! nele
+
+!----------
+!      do nele=1,grid1_size
+!        if (bin_sort1(nele) == 0) 
+!     &     write(6,*) 'sort1 error ',nele,bin_sort1(nele)
+!      enddo
+
+      n = 0
+      do j = 1,num_srch_bins
+         if (j == 1) then
+            bin_addr2(1,j) = 1
+         else
+            bin_addr2(1,j) = bin_addr2(2,j-1) + 1
+         endif
+         bin_addr2(2,j) = bin_addr2(1,j) + bin_cnt(j) - 1
+         do i = 1,bin_cnt(j)
+            n = n + 1
+            bin_sort2(n) = bin_list(i,j)
+         enddo
+      enddo
+      if (n .ne. grid2_size .or. 
+     &   bin_addr2(2,num_srch_bins) .ne. grid2_size) then
+         write(6,*) 'ERROR in size2 ',grid2_size,n,
+     &      bin_addr2(2,num_srch_bins)
+         stop
+      endif
+      deallocate(bin_list)
+      deallocate(bin_cnt)
+
+!----------
+!      do nele=1,grid2_size
+!        if (bin_sort2(nele) == 0) 
+!     &     write(6,*) 'sort2 error ',nele,bin_sort2(nele)
+!      enddo
+
+      ! update bin_lats, bin_lons to take into account full bound 
+      ! box of cells associated with the bin
+      do n = 1,num_srch_bins
+        do np = bin_addr1(1,n),bin_addr1(2,n)
+          bin_lats1(1,n) = min(bin_lats1(1,n),
+     &                         grid1_bound_box(1,bin_sort1(np)))
+          bin_lats1(2,n) = max(bin_lats1(2,n),
+     &                         grid1_bound_box(2,bin_sort1(np)))
+          bin_lons1(1,n) = min(bin_lons1(1,n),
+     &                         grid1_bound_box(3,bin_sort1(np)))
+          bin_lons1(2,n) = max(bin_lons1(2,n),
+     &                         grid1_bound_box(4,bin_sort1(np)))
+        enddo
+      enddo
+
+      do n = 1,num_srch_bins
+        do np = bin_addr2(1,n),bin_addr2(2,n)
+          bin_lats2(1,n) = min(bin_lats2(1,n),
+     &                         grid2_bound_box(1,bin_sort2(np)))
+          bin_lats2(2,n) = max(bin_lats2(2,n),
+     &                         grid2_bound_box(2,bin_sort2(np)))
+          bin_lons2(1,n) = min(bin_lons2(1,n),
+     &                         grid2_bound_box(3,bin_sort2(np)))
+          bin_lons2(2,n) = max(bin_lons2(2,n),
+     &                         grid2_bound_box(4,bin_sort2(np)))
+        enddo
+      enddo
+
+      call timer_stop(11)
+      call timer_print(11)
+      call timer_clear(11)
+
+!      write(6,*) ' '
+!      do n = 1,num_srch_bins
+!         write(6,*) 'bin_lonlat1f ',n,bin_lons1(1,n),bin_lons1(2,n),
+!     &        bin_lats1(1,n),bin_lats1(2,n)
+!      enddo
+!      do n = 1,num_srch_bins
+!         write(6,*) 'bin_addr1 ',n,bin_addr1(1,n),bin_addr1(2,n),
+!     &        bin_sort1(bin_addr1(1,n)),bin_sort1(bin_addr1(2,n))
+!      enddo
+!      write(6,*) ' '
+!      do n = 1,num_srch_bins
+!         write(6,*) 'bin_lonlat2f ',n,bin_lons2(1,n),bin_lons2(2,n),
+!     &        bin_lats2(1,n),bin_lats2(2,n)
+!      enddo
+!      do n = 1,num_srch_bins
+!         write(6,*) 'bin_addr2 ',n,bin_addr2(1,n),bin_addr2(2,n),
+!     &        bin_sort2(bin_addr2(1,n)),bin_sort2(bin_addr2(2,n))
+!      enddo
+!      write(6,*) ' '
 
 !-----------------------------------------------------------------------
 !
