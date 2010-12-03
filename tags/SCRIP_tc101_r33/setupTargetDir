@@ -1,0 +1,100 @@
+#!/bin/csh
+#
+# This script sets up target directories for scrip and
+# two test codes.  The main directory (directory_name)
+# will contain the main scrip driver and two subdirectories
+# called test and testRepeat will contain drivers for the
+# two test drivers.
+#
+# Usage:
+#            setupTargetDir directory_name
+# where
+#            directory_name is the user-supplied name of a 
+#            directory that may or may not exist.
+#
+if ($1 == "") then
+    echo "Directory name argument must be supplied"
+    echo "Usage:  setupTargetDir directory_name"
+    echo "where directory_name is the name of a directory"
+    echo "   that may or may not exist."
+    exit 1
+else
+    set workdir = $1
+    echo "Directory set to $workdir"
+endif
+
+# Check for valid SCRIP directory
+
+if (-e $SCRIPDIR) then
+  # catch relative path case by checking whether build dir exists
+  if (-e $SCRIPDIR/build) then
+    echo "Using SCRIP distribution in $SCRIPDIR"
+  else
+    echo "The value $SCRIPDIR for SCRIPDIR is not a valid SCRIP distribution"
+    exit 2
+  endif
+else
+  echo "The value $SCRIPDIR for SCRIPDIR is not a valid SCRIP distribution"
+  exit 2
+endif
+
+# Make the requested working directory tree
+
+if (-e $workdir) then
+  echo "Directory $workdir exists"
+  if (-e $workdir/test) then
+    echo "Directory $workdir/test exists"
+  else
+    echo "Test directory does not exist; creating"
+    mkdir $workdir/test
+    chmod 0775 $workdir/test
+  endif
+  if (-e $workdir/testRepeat) then
+    echo "Directory $workdir/testRepeat exists"
+  else
+    echo "TestRepeat directory does not exist; creating"
+    mkdir $workdir/testRepeat
+    chmod 0775 $workdir/testRepeat
+  endif
+else
+  echo "Directory $workdir does not exist; creating"
+  mkdir $workdir
+  mkdir $workdir/test
+  mkdir $workdir/testRepeat
+  chmod -R 0775 $workdir
+endif
+
+# Copy makefiles into the working directory
+
+if ($?SCRIPDIR) then
+  echo "Copying makefiles from $SCRIPDIR/build"
+  if (-e $SCRIPDIR/build/GNUmakefile) then
+     cp $SCRIPDIR/build/GNUmakefile $workdir
+  else
+     echo "ERROR: could not find $SCRIPDIR/build/GNUmakefile"
+  endif
+  if (-e $SCRIPDIR/build/GNUmakefileTest) then
+     cp $SCRIPDIR/build/GNUmakefileTest $workdir/test/GNUmakefile
+  else
+     echo "ERROR: could not find $SCRIPDIR/build/GNUmakefileTest"
+  endif
+  if (-e $SCRIPDIR/build/GNUmakefileTestRepeat) then
+     cp $SCRIPDIR/build/GNUmakefileTestRepeat $workdir/testRepeat/GNUmakefile
+  else
+     echo "ERROR: could not find $SCRIPDIR/build/GNUmakefileTestRepeat"
+  endif
+else
+  echo "SCRIPDIR environment not yet specified; must setenv SCRIPDIR"
+  exit 3
+endif
+
+# Copy driver files and sample inputs
+
+cp $SCRIPDIR/scrip_in $workdir
+cp $SCRIPDIR/scrip_test_in $workdir/test
+cp $SCRIPDIR/scrip_test_in $workdir/testRepeat
+
+cp $SCRIPDIR/drivers/SCRIP_driver.F90 $workdir
+cp $SCRIPDIR/drivers/scrip_test.f $workdir/test
+cp $SCRIPDIR/drivers/scrip_test_repeat.f $workdir/testRepeat
+
