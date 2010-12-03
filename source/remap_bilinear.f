@@ -74,7 +74,8 @@
       integer (SCRIP_i4) :: n,icount,
      &     dst_add,        ! destination address
      &     iter,           ! iteration counter
-     &     nmap            ! index of current map being computed
+     &     nmap,           ! index of current map being computed
+     &     progint         ! diagnostic frequency
 
       integer (SCRIP_i4), dimension(4) :: 
      &     src_add         ! address for the four source points
@@ -107,11 +108,24 @@
         stop 'Can not do bilinear interpolation when grid_rank /= 2'
       endif
 
+      print *,' '
+      print *,'grid2: '
+
+      if (grid2_size > 1000000) then
+         progint = 100000
+      else
+         progint = 10000
+      endif
+
       !***
       !*** loop over destination grid 
       !***
 
       grid_loop1: do dst_add = 1, grid2_size
+
+        if (mod(dst_add,progint) .eq. 0) then
+            print *, dst_add, ' grid2 cells processed ...'
+        endif
 
         if (.not. grid2_mask(dst_add)) cycle grid_loop1
 
@@ -125,7 +139,9 @@
         call grid_search_bilin(src_add, src_lats, src_lons, 
      &                         plat, plon, grid1_dims,
      &                         grid1_center_lat, grid1_center_lon,
-     &                         grid1_bound_box, bin_addr1, bin_addr2)
+     &                         grid1_bound_box, bin_addr1,
+     &                         bin_lons1, bin_lats1, bin_sort1,
+     &                         grid1_iwrap, grid1_jwrap)
 
         !***
         !*** check to see if points are land points
@@ -197,6 +213,10 @@
             iguess = iguess + deli
             jguess = jguess + delj
 
+!            if (iter > (9*max_iter)/10) then
+!               write(6,*) 'bilinear iter ',iter,deli,delj,converge
+!            endif
+
           end do iter_loop1
 
           if (iter <= max_iter) then
@@ -218,7 +238,25 @@
             print *,'Dest grid lons: ',src_lons
             print *,'Dest grid addresses: ',src_add
             print *,'Current i,j : ',iguess, jguess
-            stop 'Iteration for i,j exceed max iteration count'
+            print *,'Iteration exceed max iteration count DO DISTWT'
+!            stop
+! do distwgt for 4 bilinear wgts
+            wgts = zero
+            do n = 1,4
+              if (grid1_mask(src_add(n))) then
+                wgts(n) = acos( cos(plat)*cos(src_lats(n))*
+     &                         (cos(plon)*cos(src_lons(n)) +
+     &                          sin(plon)*sin(src_lons(n)))+
+     &                          sin(plat)*sin(src_lats(n)) )
+              endif
+            enddo
+            wgts = one/(wgts + tiny)
+            sum_wgts = sum(wgts)
+            wgts = wgts/sum_wgts
+            print *,' Weights ',wgts
+
+            call store_link_bilin(dst_add, src_add, wgts, nmap)
+
           endif
 
         !***
@@ -262,9 +300,18 @@
 
       if (num_maps > 1) then
 
+      print *,' '
+      print *,'grid1: '
+
       nmap = 2
       if (grid2_rank /= 2) then
         stop 'Can not do bilinear interpolation when grid_rank /= 2'
+      endif
+
+      if (grid1_size > 1000000) then
+         progint = 100000
+      else
+         progint = 10000
       endif
 
       !***
@@ -272,6 +319,10 @@
       !***
 
       grid_loop2: do dst_add = 1, grid1_size
+
+        if (mod(dst_add,progint) .eq. 0) then
+            print *, dst_add, ' grid1 cells processed ...'
+        endif
 
         if (.not. grid1_mask(dst_add)) cycle grid_loop2
 
@@ -285,7 +336,9 @@
         call grid_search_bilin(src_add, src_lats, src_lons, 
      &                         plat, plon, grid2_dims,
      &                         grid2_center_lat, grid2_center_lon,
-     &                         grid2_bound_box, bin_addr2, bin_addr1)
+     &                         grid2_bound_box, bin_addr2,
+     &                         bin_lons2, bin_lats2, bin_sort2,
+     &                         grid2_iwrap, grid2_jwrap)
 
         !***
         !*** check to see if points are land points
@@ -357,6 +410,10 @@
             iguess = iguess + deli
             jguess = jguess + delj
 
+!            if (iter > (9*max_iter)/10) then
+!               write(6,*) 'bilinear iter ',iter,deli,delj,converge
+!            endif
+
           end do iter_loop2
 
           if (iter <= max_iter) then
@@ -378,11 +435,29 @@
             print *,'Dest grid lons: ',src_lons
             print *,'Dest grid addresses: ',src_add
             print *,'Current i,j : ',iguess, jguess
-            stop 'Iteration for i,j exceed max iteration count'
+            print *,'Iteration exceed max iteration count DO DISTWT'
+!            stop
+! do distwgt for 4 bilinear wgts
+            wgts = zero
+            do n = 1,4
+              if (grid2_mask(src_add(n))) then
+                wgts(n) = acos( cos(plat)*cos(src_lats(n))*
+     &                         (cos(plon)*cos(src_lons(n)) +
+     &                          sin(plon)*sin(src_lons(n)))+
+     &                          sin(plat)*sin(src_lats(n)) )
+              endif
+            enddo
+            wgts = one/(wgts + tiny)
+            sum_wgts = sum(wgts)
+            wgts = wgts/sum_wgts
+            print *,' Weights ',wgts
+
+            call store_link_bilin(dst_add, src_add, wgts, nmap)
+
           endif
 
         !***
-        !*** search for bilinear failed - us a distance-weighted
+        !*** search for bilinear failed - use a distance-weighted
         !*** average instead
         !***
 
@@ -426,7 +501,9 @@
      &                             plat, plon, src_grid_dims,
      &                             src_center_lat, src_center_lon,
      &                             src_grid_bound_box,
-     &                             src_bin_add, dst_bin_add)
+     &                             src_bin_add, src_bin_lons,
+     &                             src_bin_lats, src_bin_sort,
+     &                             src_iwrap, src_jwrap)
 
 !-----------------------------------------------------------------------
 !
@@ -470,8 +547,18 @@
      &        src_grid_bound_box ! bound box for source grid
 
       integer (SCRIP_i4), dimension(:,:), intent(in) ::
-     &        src_bin_add,    ! latitude bins for restricting
-     &        dst_bin_add     ! searches
+     &        src_bin_add     ! latitude bins for restricting
+
+      integer (SCRIP_i4), dimension(:), intent(in) ::
+     &        src_bin_sort  ! sorted bin addresses
+
+      real (SCRIP_r8), dimension(:,:), intent(in) ::
+     &        src_bin_lons,         ! lon of src bins
+     &        src_bin_lats          ! lat of src bins
+
+      logical(SCRIP_logical), intent(in) ::
+     &        src_iwrap,    ! does the src grid wrap in i
+     &        src_jwrap     ! does the src grid wrap in j
 
 !-----------------------------------------------------------------------
 !
@@ -482,7 +569,8 @@
       integer (SCRIP_i4) :: n, next_n, srch_add,   ! dummy indices
      &    nx, ny,            ! dimensions of src grid
      &    min_add, max_add,  ! addresses for restricting search
-     &    i, j, jp1, ip1, n_add, e_add, ne_add  ! addresses
+     &    i, j, jp1, ip1, n_add, e_add, ne_add,  ! addresses
+     &    nb, addr
 
       real (SCRIP_r8) ::  ! vectors for cross-product check
      &      vec1_lat, vec1_lon,
@@ -497,27 +585,27 @@
 !-----------------------------------------------------------------------
 
       src_add = 0
-
-      min_add = size(src_center_lat)
-      max_add = 1
-      do n=1,num_srch_bins
-        if (plat >= bin_lats(1,n) .and. plat <= bin_lats(2,n) .and.
-     &      plon >= bin_lons(1,n) .and. plon <= bin_lons(2,n)) then
-          min_add = min(min_add, src_bin_add(1,n))
-          max_add = max(max_add, src_bin_add(2,n))
-        endif
-      end do
- 
-!-----------------------------------------------------------------------
-!
-!     now perform a more detailed search 
-!
-!-----------------------------------------------------------------------
-
       nx = src_grid_dims(1)
       ny = src_grid_dims(2)
 
-      srch_loop: do srch_add = min_add,max_add
+!      min_add = size(src_center_lat)
+!      max_add = 1
+      do nb=1,num_srch_bins
+        if (plat >= src_bin_lats(1,nb) .and. 
+     &      plat <= src_bin_lats(2,nb) .and.
+     &      plon >= src_bin_lons(1,nb) .and. 
+     &      plon <= src_bin_lons(2,nb)) then
+          min_add = src_bin_add(1,nb)
+          max_add = src_bin_add(2,nb)
+ 
+!-----------------------------------------------------------------------
+!
+!     now perform a more detailed bilinear search 
+!
+!-----------------------------------------------------------------------
+
+      srch_loop: do addr = min_add,max_add
+        srch_add = src_bin_sort(addr)
 
         !*** first check bounding box
 
@@ -535,17 +623,25 @@
           j = (srch_add - 1)/nx +1
           i = srch_add - (j-1)*nx
 
+          ip1 = -99
           if (i < nx) then
             ip1 = i + 1
-          else
-            ip1 = 1
+          else 
+            if (src_iwrap) ip1 = 1
           endif
 
+          jp1 = -99
           if (j < ny) then
             jp1 = j+1
-          else
-            jp1 = 1
+          else 
+            if (src_jwrap) jp1 = 1
           endif
+
+          if (ip1 < 0 .or. jp1 < 0) then
+
+             ! skip this point, no neighbors due to no wrap
+
+          else
 
           n_add = (jp1 - 1)*nx + i
           e_add = (j - 1)*nx + ip1
@@ -642,8 +738,19 @@
           !*** otherwise move on to next cell
           !***
 
+          endif  ! wrap check using ip1 jp1
+
         endif !bounding box check
       end do srch_loop
+
+!-----------------------------------------------------------------------
+!
+!     end more detailed bilinear search 
+!
+!-----------------------------------------------------------------------
+
+        endif   ! plon plat in bin
+      end do  ! num_srch_bins
 
       !***
       !*** if no cell found, point is likely either in a box that
@@ -654,8 +761,8 @@
       !*** routine from computing bilinear weights
       !***
 
-      !print *,'Could not find location for ',plat,plon
-      !print *,'Using nearest-neighbor average for this point'
+!      print *,'Could not find location for ',plat,plon
+!      print *,'Using nearest-neighbor average for this point'
 
       coslat_dst = cos(plat)
       sinlat_dst = sin(plat)
@@ -664,7 +771,19 @@
 
       dist_min = bignum
       src_lats = bignum
-      do srch_add = min_add,max_add
+
+      do nb=1,num_srch_bins
+! must search all grid cells to find closest point, bins no good
+!        if (plat >= src_bin_lats(1,nb) .and. 
+!     &      plat <= src_bin_lats(2,nb) .and.
+!     &      plon >= src_bin_lons(1,nb) .and. 
+!     &      plon <= src_bin_lons(2,nb)) then
+          min_add = src_bin_add(1,nb)
+          max_add = src_bin_add(2,nb)
+
+!---  start distwgt search
+      do addr = min_add,max_add
+        srch_add = src_bin_sort(addr)
         distance = acos(coslat_dst*cos(src_center_lat(srch_add))*
      &                 (coslon_dst*cos(src_center_lon(srch_add)) +
      &                  sinlon_dst*sin(src_center_lon(srch_add)))+
@@ -684,7 +803,11 @@
             endif
           end do sort_loop
         endif
-      end do
+      end do   ! addr
+!---  end distwgt search
+
+!        endif   ! plon plat in bin
+      end do  ! num_srch_bins
 
       src_lons = one/(src_lats + tiny)
       distance = sum(src_lons)
