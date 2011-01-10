@@ -42,9 +42,9 @@
       use SCRIP_ErrorMod   ! SCRIP error logging and checking
       use SCRIP_IOUnitsMod ! manages I/O units
       use SCRIP_InitMod    ! SCRIP initialization
-      use constants    ! defines common constants
-      use netcdf_mod   ! netcdf I/O stuff
+      use SCRIP_NetcdfMod  ! netcdf error handler
       use netcdf
+      use constants    ! defines common constants
       use grids        ! module containing grid info
       use remap_vars   ! module containing remapping info
 

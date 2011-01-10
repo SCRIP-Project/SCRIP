@@ -326,6 +326,7 @@ C$OMP END PARALLEL
 
       call timer_start(3)
 
+C$OMP PARALLEL
 C$OMP WORKSHARE
       where (grid1_area /= zero)
         grid1_centroid_lat = grid1_centroid_lat/grid1_area
@@ -339,6 +340,7 @@ C$OMP WORKSHARE
         grid2_centroid_lon = grid2_centroid_lon/grid2_area
       end where
 C$OMP END WORKSHARE
+C$OMP END PARALLEL
 
 !-----------------------------------------------------------------------
 !
@@ -442,12 +444,14 @@ C$OMP END PARALLEL
 
       print *, 'Total number of links = ',num_links_map1
 
+C$OMP PARALLEL
 C$OMP WORKSHARE
       where (grid1_area /= zero) grid1_frac = grid1_frac/grid1_area
 C$OMP END WORKSHARE
 C$OMP WORKSHARE
       where (grid2_area /= zero) grid2_frac = grid2_frac/grid2_area
 C$OMP END WORKSHARE
+C$OMP END PARALLEL
 
       call timer_stop(3)
 
