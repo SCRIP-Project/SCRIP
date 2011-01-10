@@ -49,9 +49,9 @@ Cpp_opts =
 CFLAGS = $(ABI) 
 
 ifeq ($(OPTIMIZE),yes)
-  CFLAGS := $(CFLAGS) -O -fopenmp
+  CFLAGS := $(CFLAGS) -O -openmp
 else
-  CFLAGS := $(CFLAGS) -g -fopenmp
+  CFLAGS := $(CFLAGS) -g -openmp
 endif
  
 #----------------------------------------------------------------------------
@@ -68,12 +68,12 @@ ifeq ($(TRAP_FPE),yes)
 endif
 
 ifeq ($(OPTIMIZE),yes)
-  FFLAGS = $(FBASE) -O3 -fopenmp
+  FFLAGS = $(FBASE) -O3 -openmp
 else
   #FFLAGS := $(FBASE) -g -B80 -Rb -Rc -Rs -trap=ALL
   #FFLAGS := $(FBASE) -g -Rb -Rc -Rs -B80 -trap=DIVBYZERO,INVALID
   #FFLAGS := $(FBASE) -g -Rc -Rs -trap=DIVBYZERO,INVALID
-  FFLAGS = $(FBASE) -g  -fopenmp
+  FFLAGS = $(FBASE) -g  -openmp
 endif
  
 #----------------------------------------------------------------------------
@@ -83,9 +83,9 @@ endif
 #----------------------------------------------------------------------------
 
 ifeq ($(OPTIMIZE),yes)
-  LDFLAGS = $(ABI)  -fopenmp
+  LDFLAGS = $(ABI)  -openmp
 else
-  LDFLAGS = $(ABI) -debug:full -debug:cv  -fopenmp
+  LDFLAGS = $(ABI) -debug:full -debug:cv  -openmp
 endif
  
 LIBS = $(NETCDFLIB) -lnetcdf

@@ -42,9 +42,9 @@
       use SCRIP_ErrorMod   ! SCRIP error checking and logging
       use SCRIP_IOUnitsMod ! manages I/O units
       use SCRIP_InitMod    ! initialize SCRIP
-      use constants    ! defines common constants
-      use netcdf_mod   ! netcdf I/O stuff
+      use SCRIP_NetcdfMod  ! netcdf error handler
       use netcdf
+      use constants    ! defines common constants
       use grids        ! module containing grid info
       use remap_vars   ! module containing remapping info
       use remap_mod    ! module containing remapping routines
@@ -128,6 +128,9 @@
       real (SCRIP_r8), dimension(:,:), allocatable ::
      &    grid1tmp2d, grid2tmp2d
 
+      character (10) :: 
+     &    rtnName = 'scrip_test'
+
 !-----------------------------------------------------------------------
 !
 !     initialize SCRIP
@@ -137,10 +140,9 @@
       errorCode = SCRIP_Success
       call SCRIP_CommInitMessageEnvironment
       call SCRIP_Initialize(errorCode)
-      if (SCRIP_errorCheck(errorCode,'error initializing SCRIP')) then
-         call SCRIP_ErrorPrint(errorCode, SCRIP_masterTask)
-         call SCRIP_CommExitMessageEnvironment
-         stop
+      if (SCRIP_errorCheck(errorCode, rtnName, 
+     &                     'error initializing SCRIP')) then 
+        call SCRIP_TestExit(errorCode)
       endif
 
 !-----------------------------------------------------------------------
@@ -161,7 +163,9 @@
 !
 !-----------------------------------------------------------------------
 
-      call read_remap(map_name, interp_file)
+      call read_remap(map_name, interp_file, errorCode)
+      if (SCRIP_ErrorCheck(errorCode, rtnName, 
+     &    'error reading remap file')) call SCRIP_TestExit(errorCode)
 
 !-----------------------------------------------------------------------
 !
@@ -204,11 +208,15 @@
       !***
 
       ncstat = nf90_create (output_file, NF90_CLOBBER, nc_outfile_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &    'error opening output file')) call SCRIP_TestExit(errorCode)
+
 
       ncstat = nf90_put_att(nc_outfile_id, NF90_GLOBAL, 'title',
      &                      map_name)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                           'error writing output file title')) 
+     &    call SCRIP_TestExit(errorCode)
 
       !***
       !*** define grid size dimensions
@@ -222,14 +230,16 @@
         write(dim_name,1000) 'grid1_dim',n
         ncstat = nf90_def_dim(nc_outfile_id, dim_name, 
      &                        grid1_dims(n), nc_grid1size_id(n))
-        call netcdf_error_handler(ncstat)
+        if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &      'error defining grid1 dims')) call SCRIP_TestExit(errorCode)
       end do
 
       do n=1,grid2_rank
         write(dim_name,1000) 'grid2_dim',n
         ncstat = nf90_def_dim(nc_outfile_id, dim_name, 
      &                        grid2_dims(n), nc_grid2size_id(n))
-        call netcdf_error_handler(ncstat)
+        if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &      'error defining grid2 dims')) call SCRIP_TestExit(errorCode)
       end do
  1000 format(a9,i1)
 
@@ -240,20 +250,28 @@
       ncstat = nf90_def_var(nc_outfile_id, 'src_grid_center_lat', 
      &                      NF90_DOUBLE, nc_grid1size_id, 
      &                      nc_srcgrdcntrlat_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &    'error defining src grid center lat')) 
+     &    call SCRIP_TestExit(errorCode)
 
       ncstat = nf90_put_att(nc_outfile_id, nc_srcgrdcntrlat_id, 
      &                      'units', 'radians')
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &    'error adding units src grid center lat')) 
+     &    call SCRIP_TestExit(errorCode)
 
       ncstat = nf90_def_var(nc_outfile_id, 'dst_grid_center_lat', 
      &                      NF90_DOUBLE, nc_grid2size_id, 
      &                      nc_dstgrdcntrlat_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &    'error defining dst grid center lat')) 
+     &    call SCRIP_TestExit(errorCode)
 
       ncstat = nf90_put_att(nc_outfile_id, nc_dstgrdcntrlat_id, 
      &                      'units', 'radians')
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &              'error adding units dst grid center lon')) 
+     &    call SCRIP_TestExit(errorCode)
 
       !***
       !*** define grid center longitude array
@@ -262,20 +280,28 @@
       ncstat = nf90_def_var(nc_outfile_id, 'src_grid_center_lon', 
      &                      NF90_DOUBLE, nc_grid1size_id, 
      &                      nc_srcgrdcntrlon_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                  'error defining src grid center lon')) 
+     &    call SCRIP_TestExit(errorCode)
 
       ncstat = nf90_put_att(nc_outfile_id, nc_srcgrdcntrlon_id, 
      &                      'units', 'radians')
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &              'error adding units src grid center lon')) 
+     &    call SCRIP_TestExit(errorCode)
 
       ncstat = nf90_def_var(nc_outfile_id, 'dst_grid_center_lon', 
      &                      NF90_DOUBLE, nc_grid2size_id, 
      &                      nc_dstgrdcntrlon_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                  'error defining dst grid center lon')) 
+     &    call SCRIP_TestExit(errorCode)
 
       ncstat = nf90_put_att(nc_outfile_id, nc_dstgrdcntrlon_id, 
      &                      'units', 'radians')
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &              'error adding units dst grid center lon')) 
+     &    call SCRIP_TestExit(errorCode)
 
       !***
       !*** define grid mask
@@ -283,19 +309,27 @@
 
       ncstat = nf90_def_var(nc_outfile_id, 'src_grid_imask', NF90_INT,
      &                      nc_grid1size_id, nc_srcgrdimask_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                       'error defining src grid mask')) 
+     &    call SCRIP_TestExit(errorCode)
 
       ncstat = nf90_put_att(nc_outfile_id, nc_srcgrdimask_id, 
      &                      'units', 'unitless')
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                       'error adding units to src mask')) 
+     &    call SCRIP_TestExit(errorCode)
 
       ncstat = nf90_def_var(nc_outfile_id, 'dst_grid_imask', NF90_INT,
      &                      nc_grid2size_id, nc_dstgrdimask_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                      'error defining dst mask')) 
+     &    call SCRIP_TestExit(errorCode)
 
       ncstat = nf90_put_att(nc_outfile_id, nc_dstgrdimask_id, 
      &                      'units', 'unitless')
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                      'error adding units to dst mask')) 
+     &    call SCRIP_TestExit(errorCode)
 
       !***
       !*** define grid area arrays
@@ -304,12 +338,16 @@
       ncstat = nf90_def_var(nc_outfile_id, 'src_grid_area', 
      &                      NF90_DOUBLE, nc_grid1size_id, 
      &                      nc_srcgrdarea_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                      'error defining src area')) 
+     &    call SCRIP_TestExit(errorCode)
 
       ncstat = nf90_def_var(nc_outfile_id, 'dst_grid_area', 
      &                      NF90_DOUBLE, nc_grid2size_id, 
      &                      nc_dstgrdarea_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                      'error defining dst area')) 
+     &    call SCRIP_TestExit(errorCode)
 
       !***
       !*** define grid fraction arrays
@@ -318,12 +356,16 @@
       ncstat = nf90_def_var(nc_outfile_id, 'src_grid_frac', 
      &                      NF90_DOUBLE, nc_grid1size_id, 
      &                      nc_srcgrdfrac_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                      'error defining src grid frac')) 
+     &    call SCRIP_TestExit(errorCode)
 
       ncstat = nf90_def_var(nc_outfile_id, 'dst_grid_frac', 
      &                      NF90_DOUBLE, nc_grid2size_id, 
      &                      nc_dstgrdfrac_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                      'error defining dst grid frac')) 
+     &    call SCRIP_TestExit(errorCode)
 
       !***
       !*** define source array
@@ -332,7 +374,9 @@
       ncstat = nf90_def_var(nc_outfile_id, 'src_array', 
      &                      NF90_DOUBLE, nc_grid1size_id, 
      &                      nc_srcarray_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                      'error defining src field')) 
+     &    call SCRIP_TestExit(errorCode)
 
       !***
       !*** define gradient arrays
@@ -341,12 +385,16 @@
       ncstat = nf90_def_var(nc_outfile_id, 'src_grad_lat', 
      &                      NF90_DOUBLE, nc_grid1size_id, 
      &                      nc_srcgradlat_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                      'error defining source lat gradient')) 
+     &    call SCRIP_TestExit(errorCode)
 
       ncstat = nf90_def_var(nc_outfile_id, 'src_grad_lon', 
      &                      NF90_DOUBLE, nc_grid1size_id, 
      &                      nc_srcgradlon_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                      'error defining source lon gradient')) 
+     &    call SCRIP_TestExit(errorCode)
 
       !***
       !*** define destination arrays
@@ -355,17 +403,23 @@
       ncstat = nf90_def_var(nc_outfile_id, 'dst_array1', 
      &                      NF90_DOUBLE, nc_grid2size_id, 
      &                      nc_dstarray1_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                 'error defining 1st order dst field')) 
+     &    call SCRIP_TestExit(errorCode)
 
       ncstat = nf90_def_var(nc_outfile_id, 'dst_array1a', 
      &                      NF90_DOUBLE, nc_grid2size_id, 
      &                      nc_dstarray1a_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                 'error defining 1.5 order dst field')) 
+     &    call SCRIP_TestExit(errorCode)
 
       ncstat = nf90_def_var(nc_outfile_id, 'dst_array2', 
      &                      NF90_DOUBLE, nc_grid2size_id, 
      &                      nc_dstarray2_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                 'error defining 2nd order dst field')) 
+     &    call SCRIP_TestExit(errorCode)
 
       !***
       !*** define error arrays
@@ -374,24 +428,32 @@
       ncstat = nf90_def_var(nc_outfile_id, 'dst_error1', 
      &                      NF90_DOUBLE, nc_grid2size_id, 
      &                      nc_dsterror1_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                 'error defining 1st order error')) 
+     &    call SCRIP_TestExit(errorCode)
 
       ncstat = nf90_def_var(nc_outfile_id, 'dst_error1a', 
      &                      NF90_DOUBLE, nc_grid2size_id, 
      &                      nc_dsterror1a_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                 'error defining 1.5 order error')) 
+     &    call SCRIP_TestExit(errorCode)
 
       ncstat = nf90_def_var(nc_outfile_id, 'dst_error2', 
      &                      NF90_DOUBLE, nc_grid2size_id, 
      &                      nc_dsterror2_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                 'error defining 2nd order error')) 
+     &    call SCRIP_TestExit(errorCode)
 
       !***
       !*** end definition stage
       !***
 
       ncstat = nf90_enddef(nc_outfile_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                 'error ending netCDF definition phase')) 
+     &    call SCRIP_TestExit(errorCode)
 
 !-----------------------------------------------------------------------
 !
@@ -414,7 +476,9 @@
       end do
       ncstat = nf90_put_var(nc_outfile_id, nc_srcgrdcntrlat_id,
      &                      grid1tmp2d)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                 'error writing src grid center lat')) 
+     &    call SCRIP_TestExit(errorCode)
 
       n = 0
       do j=1,grid2_dims(2)
@@ -425,7 +489,9 @@
       end do
       ncstat = nf90_put_var(nc_outfile_id, nc_dstgrdcntrlat_id,
      &                      grid2tmp2d)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                 'error writing dst grid center lat')) 
+     &    call SCRIP_TestExit(errorCode)
 
       !***
       !*** write grid center longitude array
@@ -440,7 +506,9 @@
       end do
       ncstat = nf90_put_var(nc_outfile_id, nc_srcgrdcntrlon_id,
      &                      grid1tmp2d)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                      'error writing src grid lon')) 
+     &    call SCRIP_TestExit(errorCode)
 
       n = 0
       do j=1,grid2_dims(2)
@@ -451,7 +519,9 @@
       end do
       ncstat = nf90_put_var(nc_outfile_id, nc_dstgrdcntrlon_id,
      &                      grid2tmp2d)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                      'error writing dst grid lon')) 
+     &    call SCRIP_TestExit(errorCode)
 
       !***
       !*** write grid mask
@@ -468,7 +538,9 @@
       end do
       ncstat = nf90_put_var(nc_outfile_id, nc_srcgrdimask_id,
      &                      grid1itmp2d)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                      'error writing src grid mask')) 
+     &    call SCRIP_TestExit(errorCode)
 
       n = 0
       do j=1,grid2_dims(2)
@@ -479,7 +551,9 @@
       end do
       ncstat = nf90_put_var(nc_outfile_id, nc_dstgrdimask_id,
      &                      grid2itmp2d)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                      'error writing dst grid mask')) 
+     &    call SCRIP_TestExit(errorCode)
 
       !***
       !*** define grid area arrays
@@ -494,7 +568,9 @@
       end do
       ncstat = nf90_put_var(nc_outfile_id, nc_srcgrdarea_id,
      &                      grid1tmp2d)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                      'error writing src grid area')) 
+     &    call SCRIP_TestExit(errorCode)
 
       n = 0
       do j=1,grid2_dims(2)
@@ -505,7 +581,9 @@
       end do
       ncstat = nf90_put_var(nc_outfile_id, nc_dstgrdarea_id,
      &                      grid2tmp2d)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                      'error writing dst grid area')) 
+     &    call SCRIP_TestExit(errorCode)
 
       !***
       !*** define grid fraction arrays
@@ -520,7 +598,9 @@
       end do
       ncstat = nf90_put_var(nc_outfile_id, nc_srcgrdfrac_id,
      &                      grid1tmp2d)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                      'error writing src grid frac')) 
+     &    call SCRIP_TestExit(errorCode)
 
       n = 0
       do j=1,grid2_dims(2)
@@ -531,7 +611,9 @@
       end do
       ncstat = nf90_put_var(nc_outfile_id, nc_dstgrdfrac_id,
      &                      grid2tmp2d)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                      'error writing dst grid frac')) 
+     &    call SCRIP_TestExit(errorCode)
 
 !-----------------------------------------------------------------------
 !
@@ -626,7 +708,9 @@
 
       case default
 
-        stop 'Bad choice for field to interpolate'
+        call SCRIP_ErrorSet(errorCode, rtnName, 
+     &                      'Bad choice for field to interpolate')
+        call SCRIP_TestExit(errorCode)
 
       end select
 
@@ -874,7 +958,9 @@
       end do
       ncstat = nf90_put_var(nc_outfile_id, nc_srcarray_id,
      &                      grid1tmp2d)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                           'error writing src field')) 
+     &    call SCRIP_TestExit(errorCode)
 
       n = 0
       do j=1,grid2_dims(2)
@@ -885,7 +971,9 @@
       end do
       ncstat = nf90_put_var(nc_outfile_id, nc_dstarray1_id,
      &                      grid2tmp2d  )
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                      'error writing remapped field')) 
+     &    call SCRIP_TestExit(errorCode)
 
       n = 0
       do j=1,grid2_dims(2)
@@ -896,7 +984,9 @@
       end do
       ncstat = nf90_put_var(nc_outfile_id, nc_dsterror1_id,
      &                      grid2tmp2d)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                      'error writing 1st order error')) 
+     &    call SCRIP_TestExit(errorCode)
 
 !-----------------------------------------------------------------------
 !
@@ -969,7 +1059,9 @@
       end do
         ncstat = nf90_put_var(nc_outfile_id, nc_srcgradlat_id,
      &                        grid1tmp2d)
-        call netcdf_error_handler(ncstat)
+        if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                      'error writing src lat gradient')) 
+     &    call SCRIP_TestExit(errorCode)
 
       n = 0
       do j=1,grid2_dims(2)
@@ -980,7 +1072,9 @@
       end do
         ncstat = nf90_put_var(nc_outfile_id, nc_dstarray1a_id,
      &                        grid2tmp2d  )
-        call netcdf_error_handler(ncstat)
+        if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                     'error writing 1.5 order field')) 
+     &    call SCRIP_TestExit(errorCode)
 
       n = 0
       do j=1,grid2_dims(2)
@@ -991,7 +1085,9 @@
       end do
         ncstat = nf90_put_var(nc_outfile_id, nc_dsterror1a_id,
      &                        grid2tmp2d)
-        call netcdf_error_handler(ncstat)
+        if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                        'error writing 1.5 order error')) 
+     &    call SCRIP_TestExit(errorCode)
 
 !-----------------------------------------------------------------------
 !
@@ -1062,7 +1158,9 @@
       end do
         ncstat = nf90_put_var(nc_outfile_id, nc_srcgradlon_id,
      &                        grid1tmp2d)
-        call netcdf_error_handler(ncstat)
+        if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                      'error writing src lon gradient')) 
+     &    call SCRIP_TestExit(errorCode)
 
       n = 0
       do j=1,grid2_dims(2)
@@ -1073,7 +1171,9 @@
       end do
         ncstat = nf90_put_var(nc_outfile_id, nc_dstarray2_id,
      &                        grid2tmp2d  )
-        call netcdf_error_handler(ncstat)
+        if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                        'error writing 2nd order field')) 
+     &    call SCRIP_TestExit(errorCode)
 
       n = 0
       do j=1,grid2_dims(2)
@@ -1084,7 +1184,9 @@
       end do
         ncstat = nf90_put_var(nc_outfile_id, nc_dsterror2_id,
      &                        grid2tmp2d)
-        call netcdf_error_handler(ncstat)
+        if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                        'error writing 2nd order error')) 
+     &    call SCRIP_TestExit(errorCode)
 
       endif
 
@@ -1095,7 +1197,9 @@
 !-----------------------------------------------------------------------
 
       ncstat = nf90_close(nc_outfile_id)
-      call netcdf_error_handler(ncstat)
+      if (SCRIP_NetcdfErrorCheck(ncstat, errorCode, rtnName,
+     &                           'error closing output file')) 
+     &    call SCRIP_TestExit(errorCode)
 
 !-----------------------------------------------------------------------
 !
@@ -1144,5 +1248,22 @@
 !-----------------------------------------------------------------------
 
       end program remap_test
+
+!***********************************************************************
+
+      subroutine SCRIP_TestExit(errorCode)
+
+      use SCRIP_KindsMod   ! for SCRIP data types
+      use SCRIP_CommMod    ! for SCRIP parallel environment
+      use SCRIP_ErrorMod   ! SCRIP error checking and logging
+
+      integer (SCRIP_i4), intent(in) :: errorCode
+
+      call SCRIP_ErrorPrint(errorCode, masterTask)
+      call SCRIP_CommExitMessageEnvironment
+
+      stop
+
+      end subroutine SCRIP_TestExit
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
