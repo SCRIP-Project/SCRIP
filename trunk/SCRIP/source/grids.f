@@ -80,7 +80,9 @@
 
       logical (SCRIP_logical), dimension(:), allocatable, target,save ::
      &             grid1_mask,        ! flag which cells participate
-     &             grid2_mask         ! flag which cells participate
+     &             grid2_mask,        ! flag which cells participate
+     &     special_polar_cell1,       ! cell with only 1 corner at pole
+     &     special_polar_cell2        !
 
       real (SCRIP_r8), dimension(:), allocatable, target, save ::
      &             grid1_center_lat,  ! lat/lon coordinates for
@@ -199,12 +201,12 @@
 !-----------------------------------------------------------------------
 
       integer (SCRIP_i4) :: 
-     &  n      ! loop counter
-     &, nele   ! element loop counter
-     &, i,j,k
-     &, ip1,jp1
-     &, n_add, e_add, ne_add
-     &, nx, ny
+     &  n,      ! loop counter
+     &  nele,   ! element loop counter
+     &  i,j,k,
+     &  ip1,jp1,
+     &  n_add, e_add, ne_add,
+     &  nx, ny, ncorners_at_pole
 
       integer (SCRIP_i4) ::
      &     zero_crossing, pi_crossing,
@@ -212,7 +214,7 @@
      &     corner, next_corn
      
       real (SCRIP_r8) ::
-     &     beglon, endlon, endlat
+     &     beglon, beglat, endlon, endlat
 
       logical (SCRIP_logical) ::
      &     found
@@ -348,6 +350,8 @@
 
       allocate( grid1_mask      (grid1_size),
      &          grid2_mask      (grid2_size),
+     &          special_polar_cell1(grid1_size),
+     &          special_polar_cell2(grid2_size),
      &          grid1_center_lat(grid1_size), 
      &          grid1_center_lon(grid1_size),
      &          grid2_center_lat(grid2_size), 
@@ -687,15 +691,17 @@
 !-----------------------------------------------------------------------
 !
 !     also, different grids consider the pole to be a slightly different
-!     values (1.570796326789 vs 1.5707963267977). Move such points that
-!     are practically at the pole to the pole to avoid problems
+!     values (1.570796326789 vs 1.5707963267977). Find the closest
+!     approach to the pole and if it is within a tolerance, move such
+!     points that are practically at the pole to the pole to avoid
+!     problems
 !
 !-----------------------------------------------------------------------
-
-      where (abs(grid1_corner_lat-pih) < 1.e-05) grid1_corner_lat =  pih
-      where (abs(grid1_corner_lat+pih) < 1.e-05) grid1_corner_lat = -pih
-      where (abs(grid2_corner_lat-pih) < 1.e-05) grid2_corner_lat =  pih
-      where (abs(grid2_corner_lat+pih) < 1.e-05) grid2_corner_lat = -pih
+      
+      where (abs(grid1_corner_lat-pih) < 1.e-03) grid1_corner_lat =  pih
+      where (abs(grid1_corner_lat+pih) < 1.e-03) grid1_corner_lat = -pih
+      where (abs(grid2_corner_lat-pih) < 1.e-03) grid2_corner_lat =  pih
+      where (abs(grid2_corner_lat+pih) < 1.e-03) grid2_corner_lat = -pih
 
 
 !-----------------------------------------------------------------------
@@ -981,6 +987,39 @@
          endif
 
       enddo
+
+
+      special_polar_cell1 = .false.
+      do grid1_add = 1, grid1_size
+
+         ncorners_at_pole = 0
+         do i = 1, grid1_corners
+            beglat = grid1_corner_lat(i,grid1_add)
+            if (abs(abs(beglat)-pih) .le. 1.e-5) 
+     &           ncorners_at_pole = ncorners_at_pole + 1
+         enddo
+
+         if (ncorners_at_pole .eq. 1) 
+     &        special_polar_cell1(grid1_add) = .true.
+            
+      enddo
+
+      special_polar_cell2 = .false.
+      do grid2_add = 1, grid2_size
+
+         ncorners_at_pole = 0
+         do i = 1, grid2_corners
+            beglat = grid2_corner_lat(i,grid2_add)
+            if (abs(abs(beglat)-pih) .le. 1.e-5) 
+     &              ncorners_at_pole = ncorners_at_pole + 1
+         enddo
+
+         if (ncorners_at_pole .eq. 1) 
+     &        special_polar_cell2(grid2_add) = .true.
+            
+      enddo
+
+
 
 
       print *, ' '
