@@ -5019,7 +5019,7 @@ C$OMP& srch_corner_lon,srch_center_lat,srch_center_lon)
      &     srch_mask
 
       integer (SCRIP_i4), save ::
-     &     num_srch_cells_loc,
+     &     num_srch_cells_loc,  ! Number of srch cells found
      &     srch_corners_loc     ! Number of corners for search cells
 
       integer (SCRIP_i4), dimension(:), allocatable, save ::
@@ -5076,7 +5076,13 @@ C$OMP& srch_center_lon_loc)
      &              srch_corner_lat_loc,srch_corner_lon_loc,
      &              srch_center_lat_loc,srch_center_lon_loc)
             endif
+
          endif
+
+
+         last_cell_add = cell_add
+         last_cell_grid_num = cell_grid_num
+         last_srch_grid_num = srch_grid_num
 
 
          if (cell_grid_num == 1) then
@@ -5117,33 +5123,36 @@ C$OMP& srch_center_lon_loc)
      &                 num_srch_cells_loc = num_srch_cells_loc+1
                end do
 
-               !***
-               !*** create search arrays
-               !***
+               if (num_srch_cells_loc /= 0) then
 
-               allocate(srch_add_loc(num_srch_cells_loc),
+                  !***
+                  !*** create search arrays
+                  !***
+
+                  allocate(srch_add_loc(num_srch_cells_loc),
      &            srch_corner_lat_loc(grid1_corners,num_srch_cells_loc),
      &            srch_corner_lon_loc(grid1_corners,num_srch_cells_loc),
      &            srch_center_lat_loc(num_srch_cells_loc),
      &            srch_center_lon_loc(num_srch_cells_loc))
 
-               n = 0
-               do grid1_add = min_add,max_add
-                  if (srch_mask(grid1_add)) then
-                     n = n+1
-                     srch_add_loc(n) = grid1_add
-                     srch_corner_lat_loc(:,n) = 
-     &                    grid1_corner_lat(:,grid1_add)
-                     srch_corner_lon_loc(:,n) = 
-     &                    grid1_corner_lon(:,grid1_add)
-                     srch_center_lat_loc(n) = 
-     &                    grid1_center_lat(grid1_add)
-                     srch_center_lon_loc(n) = 
-     &                    grid1_center_lon(grid1_add)
-                  endif
-               end do
+                  n = 0
+                  do grid1_add = min_add,max_add
+                     if (srch_mask(grid1_add)) then
+                        n = n+1
+                        srch_add_loc(n) = grid1_add
+                        srch_corner_lat_loc(:,n) = 
+     &                       grid1_corner_lat(:,grid1_add)
+                        srch_corner_lon_loc(:,n) = 
+     &                       grid1_corner_lon(:,grid1_add)
+                        srch_center_lat_loc(n) = 
+     &                       grid1_center_lat(grid1_add)
+                        srch_center_lon_loc(n) = 
+     &                       grid1_center_lon(grid1_add)
+                     endif
+                  end do
 
-               srch_corners_loc = grid1_corners
+                  srch_corners_loc = grid1_corners
+               endif
 
                deallocate(srch_mask)
 
@@ -5185,36 +5194,39 @@ C$OMP& srch_center_lon_loc)
      &                 num_srch_cells_loc = num_srch_cells_loc+1
                end do
 
-               !***
-               !*** create search arrays
-               !***
 
-               allocate(srch_add_loc(num_srch_cells_loc),
-     &           srch_corner_lat_loc(grid2_corners,num_srch_cells_loc),
-     &           srch_corner_lon_loc(grid2_corners,num_srch_cells_loc),
-     &           srch_center_lat_loc(num_srch_cells_loc),
-     &           srch_center_lon_loc(num_srch_cells_loc))
+               if (num_srch_cells_loc /= 0) then
 
-               n = 0
-               do grid2_add = min_add,max_add
-                  if (srch_mask(grid2_add)) then
-                     n = n+1
-                     srch_add_loc(n) = grid2_add
-                     srch_corner_lat_loc(:,n) = 
-     &                    grid2_corner_lat(:,grid2_add)
-                     srch_corner_lon_loc(:,n) = 
-     &                    grid2_corner_lon(:,grid2_add)
-                     srch_center_lat_loc(n) = 
-     &                    grid2_center_lat(grid2_add)
-                     srch_center_lon_loc(n) = 
-     &                    grid2_center_lon(grid2_add)
-                  endif
-               end do
-               
-               srch_corners_loc = grid2_corners
+                  !***
+                  !*** create search arrays
+                  !***
+
+                  allocate(srch_add_loc(num_srch_cells_loc),
+     &            srch_corner_lat_loc(grid2_corners,num_srch_cells_loc),
+     &            srch_corner_lon_loc(grid2_corners,num_srch_cells_loc),
+     &            srch_center_lat_loc(num_srch_cells_loc),
+     &            srch_center_lon_loc(num_srch_cells_loc))
+
+                  n = 0
+                  do grid2_add = min_add,max_add
+                     if (srch_mask(grid2_add)) then
+                        n = n+1
+                        srch_add_loc(n) = grid2_add
+                        srch_corner_lat_loc(:,n) = 
+     &                       grid2_corner_lat(:,grid2_add)
+                        srch_corner_lon_loc(:,n) = 
+     &                       grid2_corner_lon(:,grid2_add)
+                        srch_center_lat_loc(n) = 
+     &                       grid2_center_lat(grid2_add)
+                        srch_center_lon_loc(n) = 
+     &                       grid2_center_lon(grid2_add)
+                     endif
+                  end do
+                  
+                  srch_corners_loc = grid2_corners
+               endif
 
                deallocate(srch_mask)
-
             endif
 
          else
@@ -5255,33 +5267,37 @@ C$OMP& srch_center_lon_loc)
      &                 num_srch_cells_loc = num_srch_cells_loc+1
                end do
 
-               !***
-               !*** create search arrays
-               !***
 
-               allocate(srch_add_loc(num_srch_cells_loc),
-     &           srch_corner_lat_loc(grid1_corners,num_srch_cells_loc),
-     &           srch_corner_lon_loc(grid1_corners,num_srch_cells_loc),
-     &           srch_center_lat_loc(num_srch_cells_loc),
-     &           srch_center_lon_loc(num_srch_cells_loc))
+               if (num_srch_cells_loc /= 0) then
 
-               n = 0
-               do grid1_add = min_add,max_add
-                  if (srch_mask(grid1_add)) then
-                     n = n+1
-                     srch_add_loc(n) = grid1_add
-                     srch_corner_lat_loc(:,n) = 
-     &                    grid1_corner_lat(:,grid1_add)
-                     srch_corner_lon_loc(:,n) = 
-     &                    grid1_corner_lon(:,grid1_add)
-                     srch_center_lat_loc(n) = 
-     &                    grid1_center_lat(grid1_add)
-                     srch_center_lon_loc(n) = 
-     &                    grid1_center_lon(grid1_add)
-                  endif
-               end do
+                  !***
+                  !*** create search arrays
+                  !***
 
-               srch_corners_loc = grid1_corners
+                  allocate(srch_add_loc(num_srch_cells_loc),
+     &            srch_corner_lat_loc(grid1_corners,num_srch_cells_loc),
+     &            srch_corner_lon_loc(grid1_corners,num_srch_cells_loc),
+     &            srch_center_lat_loc(num_srch_cells_loc),
+     &            srch_center_lon_loc(num_srch_cells_loc))
+
+                  n = 0
+                  do grid1_add = min_add,max_add
+                     if (srch_mask(grid1_add)) then
+                        n = n+1
+                        srch_add_loc(n) = grid1_add
+                        srch_corner_lat_loc(:,n) = 
+     &                       grid1_corner_lat(:,grid1_add)
+                        srch_corner_lon_loc(:,n) = 
+     &                       grid1_corner_lon(:,grid1_add)
+                        srch_center_lat_loc(n) = 
+     &                       grid1_center_lat(grid1_add)
+                        srch_center_lon_loc(n) = 
+     &                       grid1_center_lon(grid1_add)
+                     endif
+                  end do
+
+                  srch_corners_loc = grid1_corners
+               endif
 
                deallocate(srch_mask)
 
@@ -5321,33 +5337,37 @@ C$OMP& srch_center_lon_loc)
      &                 num_srch_cells_loc = num_srch_cells_loc+1
                end do
                
-               !***
-               !*** create search arrays
-               !***
 
-               allocate(srch_add_loc(num_srch_cells_loc),
-     &           srch_corner_lat_loc(grid2_corners,num_srch_cells_loc),
-     &           srch_corner_lon_loc(grid2_corners,num_srch_cells_loc),
-     &           srch_center_lat_loc(num_srch_cells_loc),
-     &           srch_center_lon_loc(num_srch_cells_loc))
+               if (num_srch_cells_loc /= 0) then
 
-               n = 0
-               do grid2_add = min_add,max_add
-                  if (srch_mask(grid2_add)) then
-                     n = n+1
-                     srch_add_loc(n) = grid2_add
-                     srch_corner_lat_loc(:,n) = 
-     &                    grid2_corner_lat(:,grid2_add)
-                     srch_corner_lon_loc(:,n) = 
-     &                    grid2_corner_lon(:,grid2_add)
-                     srch_center_lat_loc(n) = 
-     &                    grid2_center_lat(grid2_add)
-                     srch_center_lon_loc(n) = 
-     &                    grid2_center_lon(grid2_add)
-                  endif
-               end do
+                  !***
+                  !*** create search arrays
+                  !***
 
-               srch_corners_loc = grid2_corners
+                  allocate(srch_add_loc(num_srch_cells_loc),
+     &            srch_corner_lat_loc(grid2_corners,num_srch_cells_loc),
+     &            srch_corner_lon_loc(grid2_corners,num_srch_cells_loc),
+     &            srch_center_lat_loc(num_srch_cells_loc),
+     &            srch_center_lon_loc(num_srch_cells_loc))
+
+                  n = 0
+                  do grid2_add = min_add,max_add
+                     if (srch_mask(grid2_add)) then
+                        n = n+1
+                        srch_add_loc(n) = grid2_add
+                        srch_corner_lat_loc(:,n) = 
+     &                       grid2_corner_lat(:,grid2_add)
+                        srch_corner_lon_loc(:,n) = 
+     &                       grid2_corner_lon(:,grid2_add)
+                        srch_center_lat_loc(n) = 
+     &                       grid2_center_lat(grid2_add)
+                        srch_center_lon_loc(n) = 
+     &                       grid2_center_lon(grid2_add)
+                     endif
+                  end do
+                  
+                  srch_corners_loc = grid2_corners
+               endif
 
                deallocate(srch_mask)
 
@@ -5355,19 +5375,12 @@ C$OMP& srch_center_lon_loc)
 
          endif
 
-         last_cell_add = cell_add
-         last_cell_grid_num = cell_grid_num
-         last_srch_grid_num = srch_grid_num
-
       endif
 
 
       num_srch_cells = num_srch_cells_loc
 
       if (num_srch_cells .eq. 0) then
-         deallocate(srch_add_loc,srch_corner_lat_loc,
-     &        srch_corner_lon_loc,srch_center_lat_loc,
-     &        srch_center_lon_loc)
          return
       endif
 
