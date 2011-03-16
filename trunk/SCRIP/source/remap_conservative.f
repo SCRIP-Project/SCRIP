@@ -102,7 +102,7 @@
      &     norm_factor          ! factor for normalizing wts
 
       real (SCRIP_r8), dimension(6) :: 
-     &     weights              ! local wgt array
+     &     weights             ! Weights array
 
       real (SCRIP_r8) ::
      &     beglat, beglon,
@@ -342,6 +342,7 @@ C$OMP WORKSHARE
 C$OMP END WORKSHARE
 C$OMP END PARALLEL
 
+
 !-----------------------------------------------------------------------
 !
 !     include centroids in weights and normalize using destination
@@ -486,7 +487,8 @@ C$OMP DO SCHEDULE(DYNAMIC)
            endlat = grid1_corner_lat(inext,n)
            endlon = grid1_corner_lon(inext,n)
 
-           if (beglon .eq. endlon) cycle
+           if ((phi_or_theta .eq. 1 .and. beglon .eq. endlon) .or.
+     &          (phi_or_theta .eq. 2 .and. beglat .eq. endlat)) cycle
 
            call line_integral(phi_or_theta, weights, num_wts, beglon, 
      &          endlon, beglat, endlat, grid1_center_lat(n), 
@@ -496,7 +498,7 @@ C$OMP DO SCHEDULE(DYNAMIC)
            ref_area(n) = ref_area(n) + weights(1)
         enddo
 
-        reldiff(n) = abs(ref_area(n)-grid1_area(n))/ref_area(n)
+        reldiff(n) = abs(ref_area(n)-grid1_area(n))/abs(ref_area(n))
       enddo
 C$OMP END DO
 C$OMP END PARALLEL
@@ -559,7 +561,8 @@ C$OMP DO SCHEDULE(DYNAMIC)
            endlat = grid2_corner_lat(inext,n)
            endlon = grid2_corner_lon(inext,n)
 
-           if (beglon .eq. endlon) cycle
+           if ((phi_or_theta .eq. 1 .and. beglon .eq. endlon) .or.
+     &          (phi_or_theta .eq. 2 .and. beglat .eq. endlat)) cycle
 
            call line_integral(phi_or_theta, weights, num_wts, beglon, 
      &          endlon, beglat, endlat, grid2_center_lat(n), 
@@ -569,7 +572,7 @@ C$OMP DO SCHEDULE(DYNAMIC)
            ref_area(n) = ref_area(n) + weights(1)
         enddo
 
-        reldiff(n) = abs(ref_area(n)-grid2_area(n))/ref_area(n)
+        reldiff(n) = abs(ref_area(n)-grid2_area(n))/abs(ref_area(n))
       enddo
 C$OMP END DO
 C$OMP END PARALLEL
@@ -845,7 +848,8 @@ C$OMP END PARALLEL
      &     begseg               ! begin lat/lon for full segment
 
       real (SCRIP_r8), dimension(6) :: 
-     &     weights              ! local wgt array
+     &     weights,             ! local wgt array
+     &     rev_weights          ! Weights for grid1 and grid2 flipped
 
       real (SCRIP_r8) ::
      &     vec1_lat, vec1_lon,  ! vectors, products
@@ -886,7 +890,6 @@ C$OMP END PARALLEL
      &     tmpwt1, tmpwt2
 
       integer (SCRIP_i4) ::
-     &     tmpnseg,
      &     ncorners_at_pole,
      &     previdx,
      &     nextidx
@@ -1105,9 +1108,6 @@ C$OMP END PARALLEL
          search = .true.
          ns = 1
 
-         tmpnseg = 0
-         tmpwt1 = 0
-         tmpwt2 = 0
          do while (beglat /= endlat .or. beglon /= endlon)
             
             if ((ns .eq. nseg) .or. (inpolar .eqv. .false.)) then
@@ -1419,14 +1419,59 @@ C$OMP END PARALLEL
                         
                         if ((.not. lrevers .and. dp .lt. 0) .or.
      &                       (lrevers .and. dp .gt. 0)) then
-                         
+                           
                            !*** Integrals from this segment must be
-                           !*** assigned to the adjacent cell of grid1_add
+                           !*** assigned to the adjacent cell of
+                           !*** opcell_add but only if such an adjacent
+                           !*** cell exists
 
                            call find_adj_cell(oppcell_add, intedge, 
      &                          opp_grid_num, adj_add)
-                           oppcell_add = adj_add
-                           
+
+                           if (adj_add .gt. 0) then
+                              oppcell_add = adj_add
+
+                              if (grid_num .eq. 1) then
+                                 ncorners_opp = grid2_corners
+                                 do i = 1, ncorners_opp
+                                    oppcell_corner_lat(i) = 
+     &                                   grid2_corner_lat(i,oppcell_add)
+                                    oppcell_corner_lon(i) = 
+     &                                   grid2_corner_lon(i,oppcell_add)
+                                 enddo
+                                 oppcell_center_lat = 
+     &                                grid2_center_lat(oppcell_add)
+                                 oppcell_center_lon = 
+     &                                grid2_center_lon(oppcell_add)
+                                 
+                                 special_cell = 
+     &                                special_polar_cell2(oppcell_add)
+                              else
+                                 ncorners_opp = grid1_corners
+                                 do i = 1, ncorners_opp
+                                    oppcell_corner_lat(i) = 
+     &                                   grid1_corner_lat(i,oppcell_add)
+                                    oppcell_corner_lon(i) =
+     &                                   grid1_corner_lon(i,oppcell_add)
+                                 enddo
+                                 oppcell_center_lat = 
+     &                                grid1_center_lat(oppcell_add)
+                                 oppcell_center_lon = 
+     &                                grid1_center_lon(oppcell_add)
+
+                                 special_cell = 
+     &                                special_polar_cell1(oppcell_add)
+                              endif
+                              
+                              
+                              if (special_cell) then
+                                 call modify_polar_cell(ncorners_opp, 
+     &                                nalloc_opp, oppcell_corner_lat, 
+     &                                oppcell_corner_lon)
+                              endif
+
+                           endif
+
                         endif
                         
                      endif
@@ -1620,10 +1665,19 @@ C$OMP END CRITICAL(block2)
 
                else
 
+                  !*** swap weights because in store_link_cnsrv
+                  !*** we are always sending in grid1 weights first
+                  !*** and then grid2 weights
+
+                  do i = 1, num_wts                     
+                     rev_weights(num_wts+i) = weights(i)
+                     rev_weights(i) = weights(num_wts+i)
+                  enddo
+
                   if (.not. lcoinc .and. oppcell_add /= 0) then
                      if (grid1_mask(oppcell_add)) then
                         call store_link_cnsrv(oppcell_add, cell_add, 
-     &                       weights)
+     &                       rev_weights)
 
 C$OMP CRITICAL(block3)
 !
@@ -1631,11 +1685,11 @@ C$OMP CRITICAL(block3)
 !     cell address and oppcell_add in which case it will try to write
 !     into this address - we have to block that until we are finished
 !
-                        grid1_frac(oppcell_add) = 
-     &                      grid1_frac(oppcell_add) + weights(1)
-
                         grid2_frac(cell_add) = 
-     &                       grid2_frac(cell_add) + weights(num_wts+1)
+     &                       grid2_frac(cell_add) + weights(1)
+
+                        grid1_frac(oppcell_add) = 
+     &                      grid1_frac(oppcell_add) + weights(num_wts+1)
 C$OMP END CRITICAL(block3)
 
                      endif
@@ -1644,17 +1698,14 @@ C$OMP END CRITICAL(block3)
                   
 C$OMP CRITICAL(block4)
                   grid2_area(cell_add) = grid2_area(cell_add) + 
-     &                 weights(num_wts+1)
+     &                 weights(1)
                   grid2_centroid_lat(cell_add) = 
-     &                 grid2_centroid_lat(cell_add) + weights(num_wts+2)
+     &                 grid2_centroid_lat(cell_add) + weights(2)
                   grid2_centroid_lon(cell_add) = 
-     &                 grid2_centroid_lon(cell_add) + weights(num_wts+3)
+     &                 grid2_centroid_lon(cell_add) + weights(3)
 C$OMP END CRITICAL(block4)
                endif
 
-               tmpnseg = tmpnseg + 1
-               tmpwt1 = tmpwt1 + weights(1)
-               
 
                !***
                !*** reset beglat and beglon for next subsegment.
@@ -1715,9 +1766,6 @@ C$OMP END CRITICAL(block4)
      &        cell_center_lat, 
      &        cell_center_lon)
 
-
-         tmpwt2 = weights(1)
-         if (lrevers) tmpwt2 = -tmpwt2
 
          !***
          !*** end of segment
@@ -3145,7 +3193,7 @@ C$OMP END CRITICAL(block4)
      &        theta1, theta2, grid1_lat, grid1_lon, 
      &        grid2_lat, grid2_lon)
       else
-         call line_integral_theta(weights, num_wts, in_phi1, in_phi2,
+         call line_integral_theta(weights, num_wts,in_phi1,in_phi2,
      &        theta1, theta2, grid1_lat, grid1_lon, 
      &        grid2_lat, grid2_lon)
       endif
@@ -3315,6 +3363,8 @@ C$OMP END CRITICAL(block4)
 
 
 
+!***********************************************************************
+
       subroutine line_integral_theta(weights, num_wts, 
      &                       in_phi1, in_phi2, theta1, theta2,
      &                       grid1_lat, grid1_lon, grid2_lat, grid2_lon)
@@ -3325,6 +3375,7 @@ C$OMP END CRITICAL(block4)
 !     that results in the interpolation weights.  the line is defined
 !     by the input lat/lon of the endpoints. Integration is w.r.t. lat
 !
+!     Needed to use Simpson rule for this integration to get lower errors
 !-----------------------------------------------------------------------
 
 !-----------------------------------------------------------------------
@@ -3358,7 +3409,8 @@ C$OMP END CRITICAL(block4)
 !-----------------------------------------------------------------------
 
       real (SCRIP_r8) :: dtheta, dtheta2, costh1, costh2, costhpi,
-     &                   phi1, phi2, theta_pi, f1, f2, fpi, part1, part2
+     &                   phi1, phi2, theta_pi, f1, f2, fpi, 
+     &                   fm, costhm, part1, part2
 
 !-----------------------------------------------------------------------
 !
@@ -3369,9 +3421,11 @@ C$OMP END CRITICAL(block4)
 
       costh1 = COS(theta1)
       costh2 = COS(theta2)
+      costhm = COS(half*(theta1+theta2))
 
       dtheta = theta2 - theta1
       dtheta2 = half*dtheta
+
 
 !-----------------------------------------------------------------------
 !
@@ -3392,6 +3446,11 @@ C$OMP END CRITICAL(block4)
 !     *********************************************!!!!!!!!!!!
 !     If we are doing the second step anyway, why are we normalizing the
 !     coordinates with respect to the grid centers?
+!
+!     We need it particularly in this integration because phi figures
+!     explicitly in the expressions - so if a cell straddles the 0,2pi
+!     boundary, we integrate some edges with phi values close to zero
+!     and others with phi values close to 2pi leading to errors
 !     *********************************************!!!!!!!!!!!
 !
 !-----------------------------------------------------------------------
@@ -3415,7 +3474,9 @@ C$OMP END CRITICAL(block4)
 
       if ((phi2-phi1) <  pi .and. (phi2-phi1) > -pi) then
 
-        weights(1) = dtheta2*(f1 + f2)
+         fm = half*(phi1+phi2)*costhm
+
+        weights(1) = dtheta*(f1 + 4*fm + f2)/6.0
 
         weights(2) = dtheta2*(theta1*f1 + theta2*f2)
 
@@ -3426,37 +3487,44 @@ C$OMP END CRITICAL(block4)
 
 !           theta at phi = pi
             theta_pi = theta1 + (pi - phi1)*dtheta/(phi2 + pi2 - phi1)
-            print *, ''
-            print *, 'phi1',phi1,'    phi2',phi2
-            print *, 'theta1',theta1,'    theta2',theta2
-            print *, 'theta_pi',theta_pi
+!            print *, ''
+!            print *, 'phi1',phi1,'    phi2',phi2
+!            print *, 'theta1',theta1,'    theta2',theta2
+!            print *, 'theta_pi',theta_pi
             
             costhpi = COS(theta_pi)
             fpi = pi*costhpi
-            
-            part1 = 0.5*(theta_pi - theta1)*(f1 + fpi)
-            part2 = 0.5*(theta2 - theta_pi)*(-fpi + f2)
-            weights(1) = part1 + part2
+
+            fm = half*(phi1+pi)*cos(half*(theta1+theta_pi))            
+            part1 = (theta_pi - theta1)*(f1 + 4*fm + fpi)/6.0
+
+            fm = half*(phi2-pi)*cos(half*(theta1+theta_pi))
+            part2 = 0.5*(theta2 - theta_pi)*(-fpi + 4*fm + f2)/6.0
+
+            weights(1) = part1 + part2 
             
             part1 = 0.5*(theta_pi - theta1)*(theta1*f1 + theta_pi*fpi)
             part2 = 0.5*(theta2 - theta_pi)*(-theta_pi*fpi + theta2*f2)
-            weights(2) = part1 + part2
+            weights(2) = part1 + part2  
             
             
          else                   ! Means phi2-phi1 > pi
        
 !           theta at phi = -pi
             theta_pi = theta1 + (-pi - phi1)*dtheta/(phi2 - pi2 - phi1)
-            print *, ''
-            print *, 'phi1',phi1,'    phi2',phi2
-            print *, 'theta1',theta1,'    theta2',theta2
-            print *, 'theta_pi',theta_pi
+!            print *, ''
+!            print *, 'phi1',phi1,'    phi2',phi2
+!            print *, 'theta1',theta1,'    theta2',theta2
+!            print *, 'theta_pi',theta_pi
             
             costhpi = COS(theta_pi)
             fpi = pi*costhpi
             
-            part1 = 0.5*(theta_pi - theta1)*(f1 - fpi)
-            part2 = 0.5*(theta2 - theta_pi)*(fpi + f2)
+            fm = half*(phi1-pi)*cos(half*(theta1+theta_pi))
+            part1 = 0.5*(theta_pi - theta1)*(f1 + 4*fm - fpi)/6.0
+
+            fm = half*(pi+phi2)*cos(half*(theta2+theta_pi))
+            part2 = 0.5*(theta2 - theta_pi)*(fpi + 4*fm + f2)/6.0
             weights(1) = part1 + part2
             
             part1 = 0.5*(theta_pi - theta1)*(theta1*f1 - theta_pi*fpi)
@@ -3492,7 +3560,9 @@ C$OMP END CRITICAL(block4)
       f2 = phi2*costh2
       
       if ((phi2-phi1) <  pi .and. (phi2-phi1) > -pi) then
-         
+
+         fm = half*(phi1+phi2)*costhm
+
          weights(num_wts+1) = dtheta2*(f1 + f2)
          
          weights(num_wts+2) = dtheta2*(theta1*f1 + theta2*f2)
@@ -3503,16 +3573,19 @@ C$OMP END CRITICAL(block4)
          if (phi1 > zero) then
             
             theta_pi = theta1 + (pi - phi1)*dtheta/(phi2 + pi2 - phi1)
-            print *, ''
-            print *, 'phi1',phi1,'    phi2',phi2
-            print *, 'theta1',theta1,'    theta2',theta2
-            print *, 'theta_pi',theta_pi
+!            print *, ''
+!            print *, 'phi1',phi1,'    phi2',phi2
+!            print *, 'theta1',theta1,'    theta2',theta2
+!            print *, 'theta_pi',theta_pi
             
             costhpi = COS(theta_pi)
             fpi = pi*costhpi
-            
-            part1 = 0.5*(theta_pi - theta1)*(f1 + fpi)
-            part2 = 0.5*(theta2 - theta_pi)*(-fpi + f2)
+
+            fm = half*(phi1+pi)*cos(half*(theta1+theta_pi))
+            part1 = (theta_pi - theta1)*(f1 + 4*fm + fpi)/6.0
+
+            fm = half*(-pi+phi2)*cos(half*(theta2+theta_pi))
+            part2 = (theta2 - theta_pi)*(-fpi + 4*fm + f2)/6.0
             weights(num_wts+1) = part1 + part2
             
             part1 = 0.5*(theta_pi - theta1)*(theta1*f1 + theta_pi*fpi)
@@ -3523,22 +3596,24 @@ C$OMP END CRITICAL(block4)
          else
             
             theta_pi = theta1 + (-pi - phi1)*dtheta/(phi2 - pi2 - phi1)
-            print *, ''
-            print *, 'phi1',phi1,'    phi2',phi2
-            print *, 'theta1',theta1,'    theta2',theta2
-            print *, 'theta_pi',theta_pi
+!            print *, ''
+!            print *, 'phi1',phi1,'    phi2',phi2
+!            print *, 'theta1',theta1,'    theta2',theta2
+!            print *, 'theta_pi',theta_pi
             
             costhpi = COS(theta_pi)
             fpi = pi*costhpi
             
-            part1 = 0.5*(theta_pi - theta1)*(f1 - fpi)
-            part2 = 0.5*(theta2 - theta_pi)*(fpi + f2)
+            fm = half*(phi1-pi)*cos(half*(theta1+theta_pi))
+            part1 = (theta_pi - theta1)*(f1 +4*fm - fpi)/6.0
+
+            fm = half*(phi2+pi)*cos(half*(theta2+theta_pi))
+            part2 = 0.5*(theta2 - theta_pi)*(fpi + 4*fm + f2)/6.0
             weights(num_wts+1) = part1 + part2
             
             part1 = 0.5*(theta_pi - theta1)*(theta1*f1 - theta_pi*fpi)
             part2 = 0.5*(theta2 - theta_pi)*(theta_pi*fpi + theta2*f2)
             weights(num_wts+2) = part1 + part2
-            
             
          endif
          
