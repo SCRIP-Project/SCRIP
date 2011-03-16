@@ -216,49 +216,36 @@ C$OMP END PARALLEL
          weights(5) =  pi*pi
          weights(6) =  zero
          
-         grid1_add = 0
-         pole_loop1: do n=1,grid1_size
-            if (grid1_area(n) < -three*pih .and.
-     &         grid1_center_lat(n) > zero) then
-               grid1_add = n
-               exit pole_loop1
-            endif
-         end do pole_loop1
-      
-         grid2_add = 0
-         pole_loop2: do n=1,grid2_size
-            if (grid2_area(n) < -three*pih .and.
-     &        grid2_center_lat(n) > zero) then
-               grid2_add = n
-               exit pole_loop2
-            endif
-         end do pole_loop2
-
-         if (grid1_add /=0) then
-            grid1_area(grid1_add) = grid1_area(grid1_add) + weights(1)
-            grid1_centroid_lat(grid1_add) = 
-     &           grid1_centroid_lat(grid1_add) + weights(2)
-            grid1_centroid_lon(grid1_add) =
-     &           grid1_centroid_lon(grid1_add) + weights(3)
+         if (grid1_npole_cell /=0) then
+            grid1_area(grid1_npole_cell) = grid1_area(grid1_npole_cell) 
+     &           + weights(1)
+            grid1_centroid_lat(grid1_npole_cell) = 
+     &           grid1_centroid_lat(grid1_npole_cell) + weights(2)
+            grid1_centroid_lon(grid1_npole_cell) =
+     &           grid1_centroid_lon(grid1_npole_cell) + weights(3)
          endif
          
-         if (grid2_add /=0) then
-            grid2_area(grid2_add) = grid2_area(grid2_add) + 
-     &           weights(num_wts+1)
-            grid2_centroid_lat(grid2_add) = 
-     &           grid2_centroid_lat(grid2_add) + weights(num_wts+2)
-            grid2_centroid_lon(grid2_add) =
-     &           grid2_centroid_lon(grid2_add) + weights(num_wts+3)
+         if (grid2_npole_cell /=0) then
+            grid2_area(grid2_npole_cell) = grid2_area(grid2_npole_cell) 
+     &           + weights(num_wts+1)
+            grid2_centroid_lat(grid2_npole_cell) = 
+     &           grid2_centroid_lat(grid2_npole_cell) + 
+     &           weights(num_wts+2)
+            grid2_centroid_lon(grid2_npole_cell) =
+     &           grid2_centroid_lon(grid2_npole_cell) + 
+     &           weights(num_wts+3)
          endif
          
-         if (grid1_add /= 0 .and. grid2_add /=0) then
-            call store_link_cnsrv(grid1_add, grid2_add, weights)
+         if (grid1_npole_cell /= 0 .and. grid2_npole_cell /=0) then
+            call store_link_cnsrv(grid1_npole_cell, 
+     &           grid2_npole_cell, weights)
             
-            grid1_frac(grid1_add) = grid1_frac(grid1_add) + 
-     &           weights(1)
-            grid2_frac(grid2_add) = grid2_frac(grid2_add) + 
-     &           weights(num_wts+1)
+            grid1_frac(grid1_npole_cell) = grid1_frac(grid1_npole_cell) 
+     &           + weights(1)
+            grid2_frac(grid2_npole_cell) = grid2_frac(grid2_npole_cell) 
+     &           + weights(num_wts+1)
          endif
+
          
          !*** South Pole
          weights(1) =  pi2
@@ -267,49 +254,35 @@ C$OMP END PARALLEL
          weights(4) =  pi2
          weights(5) = -pi*pi
          weights(6) =  zero
-
-         grid1_add = 0
-         pole_loop3: do n=1,grid1_size
-         if (grid1_area(n) < -three*pih .and.
-     &        grid1_center_lat(n) < zero) then
-            grid1_add = n
-            exit pole_loop3
-         endif
-         end do pole_loop3
-
-         grid2_add = 0
-         pole_loop4: do n=1,grid2_size
-         if (grid2_area(n) < -three*pih .and.
-     &        grid2_center_lat(n) < zero) then
-            grid2_add = n
-            exit pole_loop4
-         endif
-         end do pole_loop4
-
-         if (grid1_add /=0) then
-            grid1_area(grid1_add) = grid1_area(grid1_add) + weights(1)
-            grid1_centroid_lat(grid1_add) = 
-     &           grid1_centroid_lat(grid1_add) + weights(2)
-            grid1_centroid_lon(grid1_add) =
-     &           grid1_centroid_lon(grid1_add) + weights(3)
+         
+         if (grid1_spole_cell /=0) then
+            grid1_area(grid1_spole_cell) = grid1_area(grid1_spole_cell) 
+     &           + weights(1)
+            grid1_centroid_lat(grid1_spole_cell) = 
+     &           grid1_centroid_lat(grid1_spole_cell) + weights(2)
+            grid1_centroid_lon(grid1_spole_cell) =
+     &           grid1_centroid_lon(grid1_spole_cell) + weights(3)
          endif
          
-         if (grid2_add /=0) then
-            grid2_area(grid2_add) = grid2_area(grid2_add) + 
-     &           weights(num_wts+1)
-            grid2_centroid_lat(grid2_add) = 
-     &           grid2_centroid_lat(grid2_add) + weights(num_wts+2)
-            grid2_centroid_lon(grid2_add) =
-     &           grid2_centroid_lon(grid2_add) + weights(num_wts+3)
+         if (grid2_spole_cell /=0) then
+            grid2_area(grid2_spole_cell) = grid2_area(grid2_spole_cell) 
+     &           + weights(num_wts+1)
+            grid2_centroid_lat(grid2_spole_cell) = 
+     &           grid2_centroid_lat(grid2_spole_cell) + 
+     &           weights(num_wts+2)
+            grid2_centroid_lon(grid2_spole_cell) =
+     &           grid2_centroid_lon(grid2_spole_cell) + 
+     &           weights(num_wts+3)
          endif
 
-         if (grid1_add /= 0 .and. grid2_add /=0) then
-            call store_link_cnsrv(grid1_add, grid2_add, weights)
+         if (grid1_spole_cell /= 0 .and. grid2_spole_cell /=0) then
+            call store_link_cnsrv(grid1_spole_cell, 
+     &           grid2_spole_cell, weights)
             
-            grid1_frac(grid1_add) = grid1_frac(grid1_add) + 
-     &           weights(1)
-            grid2_frac(grid2_add) = grid2_frac(grid2_add) + 
-     &                          weights(num_wts+1)
+            grid1_frac(grid1_spole_cell) = grid1_frac(grid1_spole_cell) 
+     &           + weights(1)
+            grid2_frac(grid2_spole_cell) = grid2_frac(grid2_spole_cell) 
+     &           + weights(num_wts+1)
          endif
       endif
 
@@ -497,39 +470,61 @@ C$OMP DO SCHEDULE(DYNAMIC)
 
            ref_area(n) = ref_area(n) + weights(1)
         enddo
-
-        reldiff(n) = abs(ref_area(n)-grid1_area(n))/abs(ref_area(n))
       enddo
 C$OMP END DO
 C$OMP END PARALLEL
+
+
+!     Correct for polar cells
+
+      if (phi_or_theta .eq. 1) then
+
+         !*** North Pole
+         weights(1) =  pi2
+
+         if (grid1_npole_cell /=0) then
+            ref_area(grid1_npole_cell) = ref_area(grid1_npole_cell) 
+     &           + weights(1)
+         endif
+         
+         !*** South Pole
+         weights(1) =  pi2
+         
+         if (grid1_spole_cell /=0) then
+            ref_area(grid1_spole_cell) = ref_area(grid1_spole_cell) 
+     &           + weights(1)
+         endif
+         
+      endif
 
 
       ave_reldiff = 0.0
       max_reldiff = -1.0
 
       do n = 1, grid1_size
-        ave_reldiff = ave_reldiff + reldiff(n)
-        if (reldiff(n) > max_reldiff) then
-           max_reldiff = reldiff(n)
-           maxrd_cell = n
-           maxrd_area = grid1_area(n)
-           maxrd_true = ref_area(n)
-        endif
+         reldiff(n) = abs(ref_area(n)-grid1_area(n))/abs(ref_area(n))
+         ave_reldiff = ave_reldiff + reldiff(n)
+         if (reldiff(n) > max_reldiff) then
+            max_reldiff = reldiff(n)
+            maxrd_cell = n
+            maxrd_area = grid1_area(n)
+            maxrd_true = ref_area(n)
+         endif
       end do
-
+      
       ave_reldiff = ave_reldiff/grid1_size
 
       print *
       print *
       print *,'Grid 1: Ave. rel. diff. in areas: ',
      &     ave_reldiff
-      print *,'        rel. diff. = abs(area-truearea)/truearea'
+      print *,'        rel. diff. = abs(area-refarea)/refarea'
       print *
       print *,'Grid 1: Max. rel. diff. in areas: ',
      &     max_reldiff
       print *, 'Max rel. diff. is in cell ',maxrd_cell
       print *, 'Computed Area: ', maxrd_area
-      print *, 'True Area: ',maxrd_true 
+      print *, 'Reference Area: ',maxrd_true 
       print *
 
       deallocate(ref_area, reldiff)
@@ -571,24 +566,46 @@ C$OMP DO SCHEDULE(DYNAMIC)
 
            ref_area(n) = ref_area(n) + weights(1)
         enddo
-
-        reldiff(n) = abs(ref_area(n)-grid2_area(n))/abs(ref_area(n))
       enddo
 C$OMP END DO
 C$OMP END PARALLEL
+
+
+!     Correct for polar cells
+
+      if (phi_or_theta .eq. 1) then
+
+         !*** North Pole
+         weights(1) =  pi2
+         
+         if (grid2_npole_cell /=0) then
+            ref_area(grid2_npole_cell) = ref_area(grid2_npole_cell) 
+     &           + weights(1)
+         endif
+         
+         !*** South Pole
+         weights(1) =  pi2
+         
+         if (grid2_spole_cell /=0) then
+            ref_area(grid2_spole_cell) = ref_area(grid2_spole_cell) 
+     &           + weights(1)
+         endif
+         
+      endif
 
 
       ave_reldiff = 0.0
       max_reldiff = -1.0
 
       do n = 1, grid2_size
-        ave_reldiff = ave_reldiff + reldiff(n)
-        if (reldiff(n) > max_reldiff) then
-           max_reldiff = reldiff(n)
-           maxrd_cell = n
-           maxrd_area = grid2_area(n)
-           maxrd_true = ref_area(n)
-        endif
+         reldiff(n) = abs(ref_area(n)-grid2_area(n))/abs(ref_area(n))
+         ave_reldiff = ave_reldiff + reldiff(n)
+         if (reldiff(n) > max_reldiff) then
+            max_reldiff = reldiff(n)
+            maxrd_cell = n
+            maxrd_area = grid2_area(n)
+            maxrd_true = ref_area(n)
+         endif
       end do
 
       ave_reldiff = ave_reldiff/grid2_size
@@ -596,18 +613,22 @@ C$OMP END PARALLEL
       print *
       print *,'Grid 2: Ave. rel. diff. in areas: ',
      &     ave_reldiff
-      print *,'        rel. diff. = abs(area-truearea)/truearea'
+      print *,'        rel. diff. = abs(area-refarea)/refarea'
       print *
       print *,'Grid 2: Max. rel. diff. in areas: ',
      &     max_reldiff
       print *, 'Max rel. diff. is in cell ',maxrd_cell
       print *, 'Computed Area: ', maxrd_area
-      print *, 'True Area: ',maxrd_true 
+      print *, 'Reference Area: ',maxrd_true 
       print *
-
 
       deallocate(ref_area,reldiff)
 
+
+      print *, 'Computed area = Area of cell computed by adding areas'
+      print *, '                of intersection with other cells'
+      print *, 'Reference area = Area of cell by direct integration'
+      print *
 
 
       !***
