@@ -28,8 +28,8 @@ NETCDFINC = -I/netcdf_include_path
 NETCDFLIB = -L/netcdf_library_path
 #NETCDFINC = -I$(HOME)/packages/netcdf-3.6.3-i686_linux/include
 #NETCDFLIB = -L$(HOME)/packages/netcdf-3.6.3-i686_linux/lib
-NETCDFINC = -I$(HOME)/packages/netcdf-3.6.3-x86_64_linux/include
-NETCDFLIB = -L$(HOME)/packages/netcdf-3.6.3-x86_64_linux/lib
+NETCDFINC = -I$(HOME)/packages/netcdf-4.0.1/include
+NETCDFLIB = -L$(HOME)/packages/netcdf-4.0.1/lib
 
 #  Enable trapping and traceback of floating point exceptions, yes/no.
 #  Note - Requires 'setenv TRAP_FPE "ALL=ABORT,TRACE"' for traceback.
@@ -87,8 +87,17 @@ endif
 #----------------------------------------------------------------------------
  
 LDFLAGS = $(ABI) -fopenmp
+
+# for netcdf installations which do not have --enable-netcdf4
+
+# LIBS = $(NETCDFLIB) -lnetcdf
  
-LIBS = $(NETCDFLIB) -lnetcdf
+# if netcdf is configured with --enable-netcdf4 then it also has to 
+# be configured with --enable-separate-fortran enabling it to create 
+# the libnetcdff.a libs
+
+LIBS = $(NETCDFLIB) -lnetcdf32 -lnetcdff -lhdf5_hl -lhdf5 -lz
+
  
 ifeq ($(MPI),yes)
   LIBS := $(LIBS) -lmpi 
