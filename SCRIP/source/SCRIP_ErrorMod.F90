@@ -105,7 +105,7 @@
 !
 !-----------------------------------------------------------------------
 
-   character(SCRIP_charLength) :: &
+   character(len(rtnName)+len(errorMsg)+2) :: &
       logErrorMsg         ! constructed error message with routine name
 
 !-----------------------------------------------------------------------
