@@ -115,6 +115,8 @@
 !-----------------------------------------------------------------------
 
    integer (SCRIP_i4) :: ierr  ! local MPI error flag
+   character (23), parameter :: &
+      rtnName = 'SCRIP_BroadcastScalarR8'
 
 !-----------------------------------------------------------------------
 
@@ -123,15 +125,15 @@
    call MPI_BCAST(scalar, 1, SCRIP_mpiR8, srcTask, &
                              SCRIP_communicator, ierr)
    if (ierr /= MPI_SUCCESS) then
-      call SCRIP_ErrorSet(errorCode, &
-                        'SCRIP_BroadcastScalarR8: error in MPI Bcast')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                        'error in MPI Bcast')
       return
    endif
 
    call MPI_BARRIER(SCRIP_communicator, ierr)
    if (ierr /= MPI_SUCCESS) then
-      call SCRIP_ErrorSet(errorCode, &
-                        'SCRIP_BroadcastScalarR8: error in MPI barrier')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                        'error in MPI barrier')
       return
    endif
 
@@ -181,6 +183,8 @@ subroutine SCRIP_BroadcastScalarR4(scalar, srcTask, errorCode)
 !-----------------------------------------------------------------------
 
    integer (SCRIP_i4) :: ierr  ! local MPI error flag
+   character (23), parameter :: &
+      rtnName = 'SCRIP_BroadcastScalarR4'
 
 !-----------------------------------------------------------------------
 
@@ -190,16 +194,16 @@ subroutine SCRIP_BroadcastScalarR4(scalar, srcTask, errorCode)
                              SCRIP_communicator, ierr)
 
    if (ierr /= MPI_SUCCESS) then
-      call SCRIP_ErrorSet(errorCode, &
-                        'SCRIP_BroadcastScalarR4: error in MPI Bcast')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                        'error in MPI Bcast')
       return
    endif
 
    call MPI_BARRIER(SCRIP_communicator, ierr)
 
    if (ierr /= MPI_SUCCESS) then
-      call SCRIP_ErrorSet(errorCode, &
-                        'SCRIP_BroadcastScalarR4: error in MPI Barrier')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                        'error in MPI Barrier')
       return
    endif
 
@@ -249,6 +253,8 @@ subroutine SCRIP_BroadcastScalarI4(scalar, srcTask, errorCode)
 !-----------------------------------------------------------------------
 
    integer (SCRIP_i4) :: ierr  ! local MPI error flag
+   character (23), parameter :: &
+      rtnName = 'SCRIP_BroadcastScalarI4'
 
 !-----------------------------------------------------------------------
 
@@ -258,16 +264,16 @@ subroutine SCRIP_BroadcastScalarI4(scalar, srcTask, errorCode)
                              SCRIP_communicator,ierr)
 
    if (ierr /= MPI_SUCCESS) then
-      call SCRIP_ErrorSet(errorCode, &
-                        'SCRIP_BroadcastScalarI4: error in MPI Bcast')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                        'error in MPI Bcast')
       return
    endif
 
    call MPI_BARRIER(SCRIP_communicator, ierr)
 
    if (ierr /= MPI_SUCCESS) then
-      call SCRIP_ErrorSet(errorCode, &
-                        'SCRIP_BroadcastScalarI4: error in MPI Barrier')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                        'error in MPI Barrier')
       return
    endif
 
@@ -319,6 +325,8 @@ subroutine SCRIP_BroadcastScalarLog(scalar, srcTask, errorCode)
    integer (SCRIP_i4) :: &
      itmp,               &! local temporary
      ierr                 ! MPI error flag
+   character (24), parameter :: &
+      rtnName = 'SCRIP_BroadcastScalarLog'
 
 !-----------------------------------------------------------------------
 
@@ -334,16 +342,16 @@ subroutine SCRIP_BroadcastScalarLog(scalar, srcTask, errorCode)
                            SCRIP_communicator, ierr)
 
    if (ierr /= MPI_SUCCESS) then
-      call SCRIP_ErrorSet(errorCode, &
-                        'SCRIP_BroadcastScalarLog: error in MPI Bcast')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                        'error in MPI Bcast')
       return
    endif
 
    call MPI_BARRIER(SCRIP_communicator, ierr)
 
    if (ierr /= MPI_SUCCESS) then
-      call SCRIP_ErrorSet(errorCode, &
-                        'SCRIP_BroadcastScalarLog: error in MPI Barrier')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                        'error in MPI Barrier')
       return
    endif
 
@@ -401,6 +409,8 @@ subroutine SCRIP_BroadcastScalarChar(scalar, srcTask, errorCode)
    integer (SCRIP_i4) :: &
      clength,            &! length of character
      ierr                 ! MPI error flag
+   character (25), parameter :: &
+      rtnName = 'SCRIP_BroadcastScalarChar'
 
 !-----------------------------------------------------------------------
 
@@ -412,16 +422,16 @@ subroutine SCRIP_BroadcastScalarChar(scalar, srcTask, errorCode)
                                    SCRIP_communicator, ierr)
 
    if (ierr /= MPI_SUCCESS) then
-      call SCRIP_ErrorSet(errorCode, &
-                       'SCRIP_BroadcastScalarChar: error in MPI Bcast')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                       'error in MPI Bcast')
       return
    endif
 
    call MPI_BARRIER(SCRIP_communicator, ierr)
 
    if (ierr /= MPI_SUCCESS) then
-      call SCRIP_ErrorSet(errorCode, &
-                     'SCRIP_BroadcastScalarChar: error in MPI Barrier')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                     'error in MPI Barrier')
       return
    endif
 
@@ -473,6 +483,8 @@ subroutine SCRIP_BroadcastArrayR8D1(array, srcTask, errorCode)
    integer (SCRIP_i4) :: &
       nelements,       &! size of array
       ierr              ! local MPI error flag
+   character (24), parameter :: &
+      rtnName = 'SCRIP_BroadcastArrayR8D1'
 
 !-----------------------------------------------------------------------
 
@@ -484,16 +496,16 @@ subroutine SCRIP_BroadcastArrayR8D1(array, srcTask, errorCode)
                                     SCRIP_communicator, ierr)
 
    if (ierr /= MPI_SUCCESS) then
-      call SCRIP_ErrorSet(errorCode, &
-                        'SCRIP_BroadcastArrayR8D1: error in MPI Bcast')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                        'error in MPI Bcast')
       return
    endif
 
    call MPI_BARRIER(SCRIP_communicator, ierr)
 
    if (ierr /= MPI_SUCCESS) then
-      call SCRIP_ErrorSet(errorCode, &
-                        'SCRIP_BroadcastArrayR8D1: error in MPI Barrier')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                        'error in MPI Barrier')
       return
    endif
 
@@ -545,6 +557,8 @@ subroutine SCRIP_BroadcastArrayR4D1(array, srcTask, errorCode)
    integer (SCRIP_i4) :: &
       nelements,       &! size of array to be broadcast
       ierr              ! local MPI error flag
+   character (24), parameter :: &
+      rtnName = 'SCRIP_BroadcastArrayR4D1'
 
 !-----------------------------------------------------------------------
 
@@ -556,16 +570,16 @@ subroutine SCRIP_BroadcastArrayR4D1(array, srcTask, errorCode)
                                     SCRIP_communicator, ierr)
 
    if (ierr /= MPI_SUCCESS) then
-      call SCRIP_ErrorSet(errorCode, &
-                        'SCRIP_BroadcastArrayR4D1: error in MPI Bcast')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                        'error in MPI Bcast')
       return
    endif
 
    call MPI_BARRIER(SCRIP_communicator, ierr)
 
    if (ierr /= MPI_SUCCESS) then
-      call SCRIP_ErrorSet(errorCode, &
-                        'SCRIP_BroadcastArrayR4D1: error in MPI Barrier')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                        'error in MPI Barrier')
       return
    endif
 
@@ -617,6 +631,8 @@ subroutine SCRIP_BroadcastArrayI4D1(array, srcTask, errorCode)
    integer (SCRIP_i4) :: &
      nelements,          &! size of array to be broadcast
      ierr                 ! local MPI error flag
+   character (24), parameter :: &
+      rtnName = 'SCRIP_BroadcastArrayI4D1'
 
 !-----------------------------------------------------------------------
 
@@ -628,16 +644,16 @@ subroutine SCRIP_BroadcastArrayI4D1(array, srcTask, errorCode)
                                     SCRIP_communicator, ierr)
 
    if (ierr /= MPI_SUCCESS) then
-      call SCRIP_ErrorSet(errorCode, &
-                        'SCRIP_BroadcastArrayI4D1: error in MPI Bcast')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                        'error in MPI Bcast')
       return
    endif
 
    call MPI_BARRIER(SCRIP_communicator, ierr)
 
    if (ierr /= MPI_SUCCESS) then
-      call SCRIP_ErrorSet(errorCode, &
-                        'SCRIP_BroadcastArrayI4D1: error in MPI Barrier')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                        'error in MPI Barrier')
       return
    endif
 
@@ -692,6 +708,8 @@ subroutine SCRIP_BroadcastArrayLogD1(array, srcTask, errorCode)
    integer (SCRIP_i4) :: &
       nelements,          &! size of array to be broadcast
       ierr                 ! local MPI error flag
+   character (25), parameter :: &
+      rtnName = 'SCRIP_BroadcastArrayLogD1'
 
 !-----------------------------------------------------------------------
 
@@ -710,16 +728,16 @@ subroutine SCRIP_BroadcastArrayLogD1(array, srcTask, errorCode)
                                        SCRIP_communicator, ierr)
 
    if (ierr /= MPI_SUCCESS) then
-      call SCRIP_ErrorSet(errorCode, &
-                        'SCRIP_BroadcastArrayLogD1: error in MPI Bcast')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                        'error in MPI Bcast')
       return
    endif
 
    call MPI_BARRIER(SCRIP_communicator, ierr)
 
    if (ierr /= MPI_SUCCESS) then
-      call SCRIP_ErrorSet(errorCode, &
-                     'SCRIP_BroadcastArrayLogD1: error in MPI Barrier')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                     'error in MPI Barrier')
       return
    endif
 
@@ -779,6 +797,8 @@ subroutine SCRIP_BroadcastArrayCharD1(array, srcTask, errorCode)
    integer (SCRIP_i4) :: &
      nelements,          &! size of array to be broadcast
      ierr                 ! local MPI error flag
+   character (26), parameter :: &
+      rtnName = 'SCRIP_BroadcastArrayCharD1'
 
 !-----------------------------------------------------------------------
 
@@ -790,16 +810,16 @@ subroutine SCRIP_BroadcastArrayCharD1(array, srcTask, errorCode)
                          srcTask, SCRIP_communicator, ierr)
 
    if (ierr /= MPI_SUCCESS) then
-      call SCRIP_ErrorSet(errorCode, &
-                       'SCRIP_BroadcastArrayCharD1: error in MPI Bcast')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                       'error in MPI Bcast')
       return
    endif
 
    call MPI_BARRIER(SCRIP_communicator, ierr)
 
    if (ierr /= MPI_SUCCESS) then
-      call SCRIP_ErrorSet(errorCode, &
-                     'SCRIP_BroadcastArrayCharD1: error in MPI Barrier')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                     'error in MPI Barrier')
       return
    endif
 
@@ -851,6 +871,8 @@ subroutine SCRIP_BroadcastArrayCharD1(array, srcTask, errorCode)
    integer (SCRIP_i4) :: &
       nelements,         &! size of array
       ierr                ! local MPI error flag
+   character (24), parameter :: &
+      rtnName = 'SCRIP_BroadcastArrayR8D2'
 
 !-----------------------------------------------------------------------
 
@@ -862,16 +884,16 @@ subroutine SCRIP_BroadcastArrayCharD1(array, srcTask, errorCode)
                                     SCRIP_communicator, ierr)
 
    if (ierr /= MPI_SUCCESS) then
-      call SCRIP_ErrorSet(errorCode, &
-                        'SCRIP_BroadcastArrayR8D2: error in MPI Bcast')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                        'error in MPI Bcast')
       return
    endif
 
    call MPI_BARRIER(SCRIP_communicator, ierr)
 
    if (ierr /= MPI_SUCCESS) then
-      call SCRIP_ErrorSet(errorCode, &
-                      'SCRIP_BroadcastArrayR8D2: error in MPI Barrier')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                      'error in MPI Barrier')
       return
    endif
 
@@ -923,6 +945,8 @@ subroutine SCRIP_BroadcastArrayCharD1(array, srcTask, errorCode)
    integer (SCRIP_i4) :: &
      nelements,          &! size of array to be broadcast
      ierr                 ! local MPI error flag
+   character (24), parameter :: &
+      rtnName = 'SCRIP_BroadcastArrayR4D2'
 
 !-----------------------------------------------------------------------
 
@@ -934,16 +958,16 @@ subroutine SCRIP_BroadcastArrayCharD1(array, srcTask, errorCode)
                                     SCRIP_communicator, ierr)
 
    if (ierr /= MPI_SUCCESS) then
-      call SCRIP_ErrorSet(errorCode, &
-                        'SCRIP_BroadcastArrayR4D2: error in MPI Bcast')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                        'error in MPI Bcast')
       return
    endif
 
    call MPI_BARRIER(SCRIP_communicator, ierr)
 
    if (ierr /= MPI_SUCCESS) then
-      call SCRIP_ErrorSet(errorCode, &
-                      'SCRIP_BroadcastArrayR4D2: error in MPI Barrier')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                      'error in MPI Barrier')
       return
    endif
 
@@ -995,6 +1019,8 @@ subroutine SCRIP_BroadcastArrayCharD1(array, srcTask, errorCode)
    integer (SCRIP_i4) :: &
      nelements,          &! size of array to be broadcast
      ierr                 ! local MPI error flag
+   character (24), parameter :: &
+      rtnName = 'SCRIP_BroadcastArrayI4D2'
 
 !-----------------------------------------------------------------------
 
@@ -1006,15 +1032,15 @@ subroutine SCRIP_BroadcastArrayCharD1(array, srcTask, errorCode)
                                     SCRIP_communicator, ierr)
 
    if (ierr /= MPI_SUCCESS) then
-      call SCRIP_ErrorSet(errorCode, &
-                        'SCRIP_BroadcastArrayI4D2: error in MPI Bcast')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                        'error in MPI Bcast')
       return
    endif
 
    call MPI_BARRIER(SCRIP_communicator, ierr)
    if (ierr /= MPI_SUCCESS) then
-      call SCRIP_ErrorSet(errorCode, &
-                      'SCRIP_BroadcastArrayI4D2: error in MPI Barrier')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                      'error in MPI Barrier')
       return
    endif
 
@@ -1069,6 +1095,8 @@ subroutine SCRIP_BroadcastArrayCharD1(array, srcTask, errorCode)
    integer (SCRIP_i4) :: &
      nelements,          &! size of array to be broadcast
      ierr                 ! local MPI error flag
+   character (25), parameter :: &
+      rtnName = 'SCRIP_BroadcastArrayLogD2'
 
 !-----------------------------------------------------------------------
 
@@ -1087,16 +1115,16 @@ subroutine SCRIP_BroadcastArrayCharD1(array, srcTask, errorCode)
                                        SCRIP_communicator, ierr)
 
    if (ierr /= MPI_SUCCESS) then
-      call SCRIP_ErrorSet(errorCode, &
-                        'SCRIP_BroadcastArrayLogD2: error in MPI Bcast')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                        'error in MPI Bcast')
       return
    endif
 
    call MPI_BARRIER(SCRIP_communicator, ierr)
 
    if (ierr /= MPI_SUCCESS) then
-      call SCRIP_ErrorSet(errorCode, &
-                      'SCRIP_BroadcastArrayLogD2: error in MPI Barrier')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                      'error in MPI Barrier')
       return
    endif
 
@@ -1156,6 +1184,8 @@ subroutine SCRIP_BroadcastArrayCharD1(array, srcTask, errorCode)
    integer (SCRIP_i4) :: &
      nelements,       &! size of array
      ierr              ! local MPI error flag
+   character (24), parameter :: &
+      rtnName = 'SCRIP_BroadcastArrayR8D3'
 
 !-----------------------------------------------------------------------
 
@@ -1167,16 +1197,16 @@ subroutine SCRIP_BroadcastArrayCharD1(array, srcTask, errorCode)
                                     SCRIP_communicator, ierr)
 
    if (ierr /= MPI_SUCCESS) then
-      call SCRIP_ErrorSet(errorCode, &
-                        'SCRIP_BroadcastArrayR8D3: error in MPI Bcast')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                        'error in MPI Bcast')
       return
    endif
 
    call MPI_BARRIER(SCRIP_communicator, ierr)
 
    if (ierr /= MPI_SUCCESS) then
-      call SCRIP_ErrorSet(errorCode, &
-                      'SCRIP_BroadcastArrayR8D3: error in MPI Barrier')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                      'error in MPI Barrier')
       return
    endif
 
@@ -1228,6 +1258,8 @@ subroutine SCRIP_BroadcastArrayCharD1(array, srcTask, errorCode)
    integer (SCRIP_i4) :: &
      nelements,          &! size of array to be broadcast
      ierr                 ! local MPI error flag
+   character (24), parameter :: &
+      rtnName = 'SCRIP_BroadcastArrayR4D3'
 
 !-----------------------------------------------------------------------
 
@@ -1239,16 +1271,16 @@ subroutine SCRIP_BroadcastArrayCharD1(array, srcTask, errorCode)
                                     SCRIP_communicator, ierr)
 
    if (ierr /= MPI_SUCCESS) then
-      call SCRIP_ErrorSet(errorCode, &
-                        'SCRIP_BroadcastArrayR4D3: error in MPI Bcast')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                        'error in MPI Bcast')
       return
    endif
 
    call MPI_BARRIER(SCRIP_communicator, ierr)
 
    if (ierr /= MPI_SUCCESS) then
-      call SCRIP_ErrorSet(errorCode, &
-                      'SCRIP_BroadcastArrayR4D3: error in MPI Barrier')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                      'error in MPI Barrier')
       return
    endif
 
@@ -1300,6 +1332,8 @@ subroutine SCRIP_BroadcastArrayCharD1(array, srcTask, errorCode)
    integer (SCRIP_i4) :: &
      nelements,          &! size of array to be broadcast
      ierr                 ! local MPI error flag
+   character (24), parameter :: &
+      rtnName = 'SCRIP_BroadcastArrayI4D3'
 
 !-----------------------------------------------------------------------
 
@@ -1311,16 +1345,16 @@ subroutine SCRIP_BroadcastArrayCharD1(array, srcTask, errorCode)
                                     SCRIP_communicator, ierr)
 
    if (ierr /= MPI_SUCCESS) then
-      call SCRIP_ErrorSet(errorCode, &
-                        'SCRIP_BroadcastArrayI4D3: error in MPI Bcast')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                        'error in MPI Bcast')
       return
    endif
 
    call MPI_BARRIER(SCRIP_communicator, ierr)
 
    if (ierr /= MPI_SUCCESS) then
-      call SCRIP_ErrorSet(errorCode, &
-                      'SCRIP_BroadcastArrayI4D3: error in MPI Barrier')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                      'error in MPI Barrier')
       return
    endif
 
@@ -1375,6 +1409,8 @@ subroutine SCRIP_BroadcastArrayCharD1(array, srcTask, errorCode)
    integer (SCRIP_i4) :: &
      nelements,          &! size of array to be broadcast
      ierr                 ! local MPI error flag
+   character (25), parameter :: &
+      rtnName = 'SCRIP_BroadcastArrayLogD3'
 
 !-----------------------------------------------------------------------
 
@@ -1395,16 +1431,16 @@ subroutine SCRIP_BroadcastArrayCharD1(array, srcTask, errorCode)
                                        SCRIP_communicator, ierr)
 
    if (ierr /= MPI_SUCCESS) then
-      call SCRIP_ErrorSet(errorCode, &
-                        'SCRIP_BroadcastArrayLogD3: error in MPI Bcast')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                        'error in MPI Bcast')
       return
    endif
 
    call MPI_BARRIER(SCRIP_communicator, ierr)
 
    if (ierr /= MPI_SUCCESS) then
-      call SCRIP_ErrorSet(errorCode, &
-                        'SCRIP_BroadcastArrayLogD3: error in MPI Barrier')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                        'error in MPI Barrier')
       return
    endif
 
@@ -1464,6 +1500,8 @@ subroutine SCRIP_BroadcastArrayCharD1(array, srcTask, errorCode)
    integer (SCRIP_i4) :: &
      nelements,       &! size of array
      ierr              ! local MPI error flag
+   character (24), parameter :: &
+      rtnName = 'SCRIP_BroadcastArrayR8D4'
 
 !-----------------------------------------------------------------------
 
@@ -1475,16 +1513,16 @@ subroutine SCRIP_BroadcastArrayCharD1(array, srcTask, errorCode)
                                     SCRIP_communicator, ierr)
 
    if (ierr /= MPI_SUCCESS) then
-      call SCRIP_ErrorSet(errorCode, &
-                        'SCRIP_BroadcastArrayR8D4: error in MPI Bcast')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                        'error in MPI Bcast')
       return
    endif
 
    call MPI_BARRIER(SCRIP_communicator, ierr)
 
    if (ierr /= MPI_SUCCESS) then
-      call SCRIP_ErrorSet(errorCode, &
-                      'SCRIP_BroadcastArrayR8D4: error in MPI Barrier')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                      'error in MPI Barrier')
       return
    endif
 
@@ -1536,6 +1574,8 @@ subroutine SCRIP_BroadcastArrayCharD1(array, srcTask, errorCode)
    integer (SCRIP_i4) :: &
      nelements,          &! size of array to be broadcast
      ierr                 ! local MPI error flag
+   character (24), parameter :: &
+      rtnName = 'SCRIP_BroadcastArrayR4D4'
 
 !-----------------------------------------------------------------------
 
@@ -1547,16 +1587,16 @@ subroutine SCRIP_BroadcastArrayCharD1(array, srcTask, errorCode)
                                     SCRIP_communicator, ierr)
 
    if (ierr /= MPI_SUCCESS) then
-      call SCRIP_ErrorSet(errorCode, &
-                        'SCRIP_BroadcastArrayR4D4: error in MPI Bcast')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                        'error in MPI Bcast')
       return
    endif
 
    call MPI_BARRIER(SCRIP_communicator, ierr)
 
    if (ierr /= MPI_SUCCESS) then
-      call SCRIP_ErrorSet(errorCode, &
-                      'SCRIP_BroadcastArrayR4D4: error in MPI Barrier')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                      'error in MPI Barrier')
       return
    endif
 
@@ -1608,6 +1648,8 @@ subroutine SCRIP_BroadcastArrayCharD1(array, srcTask, errorCode)
    integer (SCRIP_i4) :: &
      nelements,          &! size of array to be broadcast
      ierr                 ! local MPI error flag
+   character (24), parameter :: &
+      rtnName = 'SCRIP_BroadcastArrayI4D4'
 
 !-----------------------------------------------------------------------
 
@@ -1619,16 +1661,16 @@ subroutine SCRIP_BroadcastArrayCharD1(array, srcTask, errorCode)
                                     SCRIP_communicator, ierr)
 
    if (ierr /= MPI_SUCCESS) then
-      call SCRIP_ErrorSet(errorCode, &
-                        'SCRIP_BroadcastArrayI4D4: error in MPI Bcast')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                        'error in MPI Bcast')
       return
    endif
 
    call MPI_BARRIER(SCRIP_communicator, ierr)
 
    if (ierr /= MPI_SUCCESS) then
-      call SCRIP_ErrorSet(errorCode, &
-                      'SCRIP_BroadcastArrayI4D4: error in MPI Barrier')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                      'error in MPI Barrier')
       return
    endif
 
@@ -1683,6 +1725,8 @@ subroutine SCRIP_BroadcastArrayCharD1(array, srcTask, errorCode)
    integer (SCRIP_i4) :: &
      nelements,          &! size of array to be broadcast
      ierr                 ! local MPI error flag
+   character (25), parameter :: &
+      rtnName = 'SCRIP_BroadcastArrayLogD4'
 
 !-----------------------------------------------------------------------
 
@@ -1704,16 +1748,16 @@ subroutine SCRIP_BroadcastArrayCharD1(array, srcTask, errorCode)
                                        SCRIP_communicator, ierr)
 
    if (ierr /= MPI_SUCCESS) then
-      call SCRIP_ErrorSet(errorCode, &
-                        'SCRIP_BroadcastArrayLogD4: error in MPI Bcast')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                        'error in MPI Bcast')
       return
    endif
 
    call MPI_BARRIER(SCRIP_communicator, ierr)
 
    if (ierr /= MPI_SUCCESS) then
-      call SCRIP_ErrorSet(errorCode, &
-                        'SCRIP_BroadcastArrayLogD4: error in MPI Barrier')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                        'error in MPI Barrier')
       return
    endif
 
@@ -1773,6 +1817,8 @@ subroutine SCRIP_BroadcastArrayCharD1(array, srcTask, errorCode)
    integer (SCRIP_i4) :: &
      nelements,       &! size of array
      ierr              ! local MPI error flag
+   character (24), parameter :: &
+      rtnName = 'SCRIP_BroadcastArrayR8D5'
 
 !-----------------------------------------------------------------------
 
@@ -1784,16 +1830,16 @@ subroutine SCRIP_BroadcastArrayCharD1(array, srcTask, errorCode)
                                     SCRIP_communicator, ierr)
 
    if (ierr /= MPI_SUCCESS) then
-      call SCRIP_ErrorSet(errorCode, &
-                        'SCRIP_BroadcastArrayR8D5: error in MPI Bcast')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                        'error in MPI Bcast')
       return
    endif
 
    call MPI_BARRIER(SCRIP_communicator, ierr)
 
    if (ierr /= MPI_SUCCESS) then
-      call SCRIP_ErrorSet(errorCode, &
-                      'SCRIP_BroadcastArrayR8D5: error in MPI Barrier')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                      'error in MPI Barrier')
       return
    endif
 
@@ -1845,6 +1891,8 @@ subroutine SCRIP_BroadcastArrayCharD1(array, srcTask, errorCode)
    integer (SCRIP_i4) :: &
      nelements,          &! size of array to be broadcast
      ierr                 ! local MPI error flag
+   character (24), parameter :: &
+      rtnName = 'SCRIP_BroadcastArrayR4D5'
 
 !-----------------------------------------------------------------------
 
@@ -1856,16 +1904,16 @@ subroutine SCRIP_BroadcastArrayCharD1(array, srcTask, errorCode)
                                     SCRIP_communicator, ierr)
 
    if (ierr /= MPI_SUCCESS) then
-      call SCRIP_ErrorSet(errorCode, &
-                        'SCRIP_BroadcastArrayR4D5: error in MPI Bcast')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                        'error in MPI Bcast')
       return
    endif
 
    call MPI_BARRIER(SCRIP_communicator, ierr)
 
    if (ierr /= MPI_SUCCESS) then
-      call SCRIP_ErrorSet(errorCode, &
-                      'SCRIP_BroadcastArrayR4D5: error in MPI Barrier')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                      'error in MPI Barrier')
       return
    endif
 
@@ -1917,6 +1965,8 @@ subroutine SCRIP_BroadcastArrayCharD1(array, srcTask, errorCode)
    integer (SCRIP_i4) :: &
      nelements,          &! size of array to be broadcast
      ierr                 ! local MPI error flag
+   character (24), parameter :: &
+      rtnName = 'SCRIP_BroadcastArrayI4D5'
 
 !-----------------------------------------------------------------------
 
@@ -1928,16 +1978,16 @@ subroutine SCRIP_BroadcastArrayCharD1(array, srcTask, errorCode)
                                     SCRIP_communicator, ierr)
 
    if (ierr /= MPI_SUCCESS) then
-      call SCRIP_ErrorSet(errorCode, &
-                        'SCRIP_BroadcastArrayI4D5: error in MPI Bcast')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                        'error in MPI Bcast')
       return
    endif
 
    call MPI_BARRIER(SCRIP_communicator, ierr)
 
    if (ierr /= MPI_SUCCESS) then
-      call SCRIP_ErrorSet(errorCode, &
-                      'SCRIP_BroadcastArrayI4D5: error in MPI Barrier')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                      'error in MPI Barrier')
       return
    endif
 
@@ -1992,6 +2042,8 @@ subroutine SCRIP_BroadcastArrayCharD1(array, srcTask, errorCode)
    integer (SCRIP_i4) :: &
      nelements,          &! size of array to be broadcast
      ierr                 ! local MPI error flag
+   character (25), parameter :: &
+      rtnName = 'SCRIP_BroadcastArrayLogD5'
 
 !-----------------------------------------------------------------------
 
@@ -2014,16 +2066,16 @@ subroutine SCRIP_BroadcastArrayCharD1(array, srcTask, errorCode)
                                        SCRIP_communicator, ierr)
 
    if (ierr /= MPI_SUCCESS) then
-      call SCRIP_ErrorSet(errorCode, &
-                        'SCRIP_BroadcastArrayLogD5: error in MPI Bcast')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                        'error in MPI Bcast')
       return
    endif
 
    call MPI_BARRIER(SCRIP_communicator, ierr)
 
    if (ierr /= MPI_SUCCESS) then
-      call SCRIP_ErrorSet(errorCode, &
-                        'SCRIP_BroadcastArrayLogD5: error in MPI Barrier')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                        'error in MPI Barrier')
       return
    endif
 
@@ -2083,6 +2135,8 @@ subroutine SCRIP_BroadcastArrayCharD1(array, srcTask, errorCode)
    integer (SCRIP_i4) :: &
      nelements,       &! size of array
      ierr              ! local MPI error flag
+   character (24), parameter :: &
+      rtnName = 'SCRIP_BroadcastArrayR8D6'
 
 !-----------------------------------------------------------------------
 
@@ -2094,16 +2148,16 @@ subroutine SCRIP_BroadcastArrayCharD1(array, srcTask, errorCode)
                                     SCRIP_communicator, ierr)
 
    if (ierr /= MPI_SUCCESS) then
-      call SCRIP_ErrorSet(errorCode, &
-                        'SCRIP_BroadcastArrayR8D6: error in MPI Bcast')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                        'error in MPI Bcast')
       return
    endif
 
    call MPI_BARRIER(SCRIP_communicator, ierr)
 
    if (ierr /= MPI_SUCCESS) then
-      call SCRIP_ErrorSet(errorCode, &
-                      'SCRIP_BroadcastArrayR8D6: error in MPI Barrier')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                      'error in MPI Barrier')
       return
    endif
 
@@ -2155,6 +2209,8 @@ subroutine SCRIP_BroadcastArrayCharD1(array, srcTask, errorCode)
    integer (SCRIP_i4) :: &
      nelements,          &! size of array to be broadcast
      ierr                 ! local MPI error flag
+   character (24), parameter :: &
+      rtnName = 'SCRIP_BroadcastArrayR4D6'
 
 !-----------------------------------------------------------------------
 
@@ -2166,16 +2222,16 @@ subroutine SCRIP_BroadcastArrayCharD1(array, srcTask, errorCode)
                                     SCRIP_communicator, ierr)
 
    if (ierr /= MPI_SUCCESS) then
-      call SCRIP_ErrorSet(errorCode, &
-                        'SCRIP_BroadcastArrayR4D6: error in MPI Bcast')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                        'error in MPI Bcast')
       return
    endif
 
    call MPI_BARRIER(SCRIP_communicator, ierr)
 
    if (ierr /= MPI_SUCCESS) then
-      call SCRIP_ErrorSet(errorCode, &
-                      'SCRIP_BroadcastArrayR4D6: error in MPI Barrier')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                      'error in MPI Barrier')
       return
    endif
 
@@ -2227,6 +2283,8 @@ subroutine SCRIP_BroadcastArrayCharD1(array, srcTask, errorCode)
    integer (SCRIP_i4) :: &
      nelements,          &! size of array to be broadcast
      ierr                 ! local MPI error flag
+   character (24), parameter :: &
+      rtnName = 'SCRIP_BroadcastArrayI4D6'
 
 !-----------------------------------------------------------------------
 
@@ -2238,16 +2296,16 @@ subroutine SCRIP_BroadcastArrayCharD1(array, srcTask, errorCode)
                                     SCRIP_communicator, ierr)
 
    if (ierr /= MPI_SUCCESS) then
-      call SCRIP_ErrorSet(errorCode, &
-                        'SCRIP_BroadcastArrayI4D6: error in MPI Bcast')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                        'error in MPI Bcast')
       return
    endif
 
    call MPI_BARRIER(SCRIP_communicator, ierr)
 
    if (ierr /= MPI_SUCCESS) then
-      call SCRIP_ErrorSet(errorCode, &
-                      'SCRIP_BroadcastArrayI4D6: error in MPI Barrier')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                      'error in MPI Barrier')
       return
    endif
 
@@ -2302,6 +2360,8 @@ subroutine SCRIP_BroadcastArrayCharD1(array, srcTask, errorCode)
    integer (SCRIP_i4) :: &
      nelements,          &! size of array to be broadcast
      ierr                 ! local MPI error flag
+   character (25), parameter :: &
+      rtnName = 'SCRIP_BroadcastArrayLogD6'
 
 !-----------------------------------------------------------------------
 
@@ -2325,16 +2385,16 @@ subroutine SCRIP_BroadcastArrayCharD1(array, srcTask, errorCode)
                                        SCRIP_communicator, ierr)
 
    if (ierr /= MPI_SUCCESS) then
-      call SCRIP_ErrorSet(errorCode, &
-                        'SCRIP_BroadcastArrayLogD6: error in MPI Bcast')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                        'error in MPI Bcast')
       return
    endif
 
    call MPI_BARRIER(SCRIP_communicator, ierr)
 
    if (ierr /= MPI_SUCCESS) then
-      call SCRIP_ErrorSet(errorCode, &
-                        'SCRIP_BroadcastArrayLogD6: error in MPI Barrier')
+      call SCRIP_ErrorSet(errorCode, rtnName, &
+                        'error in MPI Barrier')
       return
    endif
 
